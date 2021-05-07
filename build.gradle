@@ -1,0 +1,26 @@
+plugins {
+    id 'org.jetbrains.intellij' version '0.7.2'
+    id 'org.jetbrains.kotlin.jvm' version '1.4.32'
+}
+
+group 'org.mocaris.plugin'
+version '1.0.5'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation "org.jetbrains.kotlin:kotlin-stdlib"
+    implementation 'com.google.code.gson:gson:2.8.6'
+}
+
+// See https://github.com/JetBrains/gradle-intellij-plugin/
+intellij {
+    version '2021.1'
+}
+patchPluginXml {
+    changeNotes """
+      Release the first version.<br>
+      """
+}

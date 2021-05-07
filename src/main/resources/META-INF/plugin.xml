@@ -1,0 +1,83 @@
+<idea-plugin>
+    <id>org.mocaris.plugin.FlutterTools</id>
+    <name>FlutterTools</name>
+    <vendor email="imocaris@outlook.com" url="https://github.com/Mocaris/">Mocaris</vendor>
+
+    <description><![CDATA[
+   <h3>FlutterTools can help you get things done quickly in development </h3>
+<br>
+
+<h3> Useage:</h3>
+Menu > FlutterTools > AssetsSync <br>
+<p>
+AssetsSync It helps scan and generate the r.dart<br>
+If an error occurs, please withdraw and check the configuration spelling for errors<br>
+
+*** is the name of the resource folder<br>
+
+    # sync-***-start<br>
+    # sync-***-end<br>
+
+Backup 'pubSpecc.yaml' to 'pubSpecc.yaml.back' at runtime<br>
+Synchronize assets to 'pubspec.yaml' and create the 'lib/ r.dart' files<br>
+
+</p>
+------- example -------
+<p>
+    flutter:<br>
+        assets:<br>
+            # sync-assets-start<br>
+            # sync-assets-end<br>
+            # sync-assets/images-start<br>
+            # sync-assets/images-end<br>
+            # sync-images-start<br>
+            # sync-images-end<br>
+</p>
+
+<h3> 使用方式:</h3>
+Menu > FlutterTools > AssetsSync <br>
+<p>
+AssetsSync 帮助扫描并生成资源 r.dart<br>
+    如发生错误 请撤回并检查 配置拼写是否错误<br>
+
+*** 为资源文件夹名称<br>
+
+    # sync-***-start<br>
+    # sync-***-end<br>
+
+运行时会备份原 ‘pubspecc.yaml’ 为 ‘pubspecc.yaml.back’<br>
+同步 assets 到 pubspec 创建 lib/r.dart 文件<br>
+
+</p>
+   ]]></description>
+
+    <!-- please see https://plugins.jetbrains.com/docs/intellij/plugin-compatibility.html
+         on how to target different products -->
+    <depends>com.intellij.modules.platform</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <!-- Add your extensions here -->
+    </extensions>
+
+    <actions>
+        <!-- Add your actions here -->
+        <group text="FlutterTools"
+               searchable="true"
+               popup="true"
+               compact="true"
+               id="FlutterTools.Mocaris">
+            <add-to-group group-id="ToolsMenu" anchor="first"/>
+            <action id="AssetsSync"
+                    popup="true"
+                    class="com.mocaris.plugin.flutter.sync.AssetsSyncAction"
+                    text="AssetsSync"
+                    description="A tool for synchronizing files"/>
+            <!--            <action class="com.mocaris.plugin.flutter.json.Json2DartAction"-->
+            <!--                    popup="true"-->
+            <!--                    id="Json2dart"-->
+            <!--                    description="A tool for json covert to dart class "-->
+            <!--                    text="Json2Dart"/>-->
+        </group>
+
+    </actions>
+</idea-plugin>
