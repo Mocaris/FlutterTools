@@ -1,7 +1,7 @@
 <idea-plugin>
     <id>org.mocaris.plugin.FlutterTools</id>
     <name>FlutterTools</name>
-    <vendor email="imocaris@outlook.com" url="https://github.com/Mocaris/">Mocaris</vendor>
+    <vendor email="imocaris@outlook.com" url="https://github.com/Mocaris/FlutterTools">Mocaris</vendor>
 
     <description><![CDATA[
    <h3>FlutterTools can help you get things done quickly in development </h3>
