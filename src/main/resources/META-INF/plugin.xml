@@ -54,7 +54,7 @@ AssetsSync 帮助扫描并生成资源 r.dart<br>
     <!-- please see https://plugins.jetbrains.com/docs/intellij/plugin-compatibility.html
          on how to target different products -->
     <depends>com.intellij.modules.platform</depends>
-
+    <idea-version since-build="201.8743.12"/>
     <extensions defaultExtensionNs="com.intellij">
         <!-- Add your extensions here -->
     </extensions>
@@ -62,7 +62,6 @@ AssetsSync 帮助扫描并生成资源 r.dart<br>
     <actions>
         <!-- Add your actions here -->
         <group text="FlutterTools"
-               searchable="true"
                popup="true"
                compact="true"
                id="FlutterTools.Mocaris">
