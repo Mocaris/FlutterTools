@@ -144,7 +144,7 @@ class AssetsSyncAction : AnAction() {
     @Throws(IOException::class)
     private fun write2Yaml(pubYamlFile: File, newYaml: ArrayList<String>) {
         val parentPath = pubYamlFile.parentFile.path
-        val backFile = File(parentPath, "pubspec-${System.currentTimeMillis()}.yaml.back")
+        val backFile = File(parentPath, "pubspec.yaml.back")
         backFile.deleteOnExit()
         backFile.createNewFile()
         FileUtil.copy(pubYamlFile, backFile)
