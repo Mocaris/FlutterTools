@@ -35,9 +35,9 @@ class AssetsSyncAction : AnAction() {
             return
         }
         try {
-            readPubspec(basePath, pubYamlFile)
+            readPubspec(basePath!!, pubYamlFile)
             Messages.showMessageDialog(
-                "",
+                "Success",
                 "Assets Sync Tools Run Successful",
                 Messages.getInformationIcon()
             )
@@ -54,12 +54,12 @@ class AssetsSyncAction : AnAction() {
      * 读取 yaml 内容
      */
     @Throws(IOException::class)
-    private fun readPubspec(basePath: String?, pubYamlFile: File) {
+    private fun readPubspec(basePath: String, pubYamlFile: File) {
         val patternStart = Pattern.compile(syncRegStart)
         val patternEnd = Pattern.compile(syncRegEnd)
-        val syncLines: ArrayList<SyncLines> = ArrayList<SyncLines>()
         var beforeEnd = false
         val syncNodeBefore = ArrayList<String>()
+        val syncLines = ArrayList<SyncLines>()
         val syncNodeAfter = ArrayList<String>()
         val pubLines = ArrayList(FileUtil.loadLines(pubYamlFile))
         //查询配置 在哪一行
@@ -102,7 +102,7 @@ class AssetsSyncAction : AnAction() {
     //解析查询到的配置
     @Throws(IOException::class)
     private fun findWriteSyncFolderFiles(
-        basePath: String?,
+        basePath: String,
         pubYamlFile: File,
         syncNodeBefore: ArrayList<String>,
         syncNodeAfter: ArrayList<String>,
@@ -114,16 +114,16 @@ class AssetsSyncAction : AnAction() {
         val classRField = ArrayList<String>()
         for (lines in syncLines) {
             val syncFolderFiles = getSyncFolderFiles(basePath, lines.syncFolder)
-            if (!syncFolderFiles.isEmpty()) {
+            if (syncFolderFiles.isNotEmpty()) {
                 nodeLines.add("    # sync-" + lines.syncFolder + "-start")
                 syncFolderFiles.forEach { (syncFolder: String, files: List<String>) ->
                     nodeLines.add("    # $syncFolder/*")
-                    files.forEach(Consumer { file: String ->
+                    files.forEach { file: String ->
                         if (!file.startsWith(".")) {
                             classRField.add("$syncFolder/$file")
                             nodeLines.add("    - $syncFolder/$file")
                         }
-                    })
+                    }
                 }
                 nodeLines.add("    # sync-" + lines.syncFolder + "-end")
             }
@@ -168,7 +168,7 @@ class AssetsSyncAction : AnAction() {
                     if (i == 0) {
                         name.append(word)
                     } else {
-                        name.append(word.substring(0, 1).toUpperCase()).append(word.substring(1))
+                        name.append(word.substring(0, 1).uppercase()).append(word.substring(1))
                     }
                 }
                 rClass.append("  static final String ").append(name).append(" = ").append("\"").append(s).append("\";").append("\n")
@@ -179,25 +179,23 @@ class AssetsSyncAction : AnAction() {
     }
 
     //需要同步的 文件夹  文件
-    private fun getSyncFolderFiles(basePath: String?, folder: String): Map<String, List<String>> {
+    private fun getSyncFolderFiles(basePath: String, folder: String): Map<String, List<String>> {
         //parent fileName
         val assetsList: MutableMap<String, List<String>> = HashMap()
         val folderFile = File(basePath, folder)
         val list = ArrayList<String>()
         if (folderFile.exists()) {
-            if (folderFile.isDirectory) {
-                for (childFile in folderFile.listFiles()) {
-                    if (childFile.isFile) {
-                        list.add(childFile.name)
-                    }
-                    if (childFile.isDirectory) {
-                        val childFolder = childFile.path.replace(basePath + File.separator, "")
-                        assetsList.putAll(getSyncFolderFiles(basePath, childFolder))
-                    }
+            folderFile.listFiles()?.forEach { childFile ->
+                if (childFile.isFile) {
+                    list.add(childFile.name)
+                }
+                if (childFile.isDirectory) {
+                    val childFolder = childFile.path.replace(basePath+File.separator, "")
+                    assetsList.putAll(getSyncFolderFiles(basePath, childFolder))
                 }
             }
         }
-        assetsList[folder] = list
+        assetsList[folder.replace("\\", "/")] = list
         return assetsList
     }
 
