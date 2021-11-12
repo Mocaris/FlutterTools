@@ -7,8 +7,12 @@ import com.intellij.openapi.util.io.FileUtil
 import com.mocaris.plugin.flutter.sync.models.SyncLines
 import java.io.File
 import java.io.IOException
+import java.text.SimpleDateFormat
+import java.util.*
 import java.util.function.Consumer
 import java.util.regex.Pattern
+import kotlin.collections.ArrayList
+import kotlin.collections.HashMap
 
 /**
  * 同步 assets 到 pubspec 创建 lib/r.dart 文件
@@ -138,8 +142,9 @@ class AssetsSyncAction : AnAction() {
 
     @Throws(IOException::class)
     private fun write2Yaml(pubYamlFile: File, newYaml: ArrayList<String>) {
+        val filSuffix = SimpleDateFormat("YYYY-MM-dd HH:mm:ss").format(Date())
         val parentPath = pubYamlFile.parentFile.path
-        val backFile = File(parentPath, "pubspec.yaml.back")
+        val backFile = File(parentPath, "pubspec.yaml.back-$filSuffix")
         backFile.deleteOnExit()
         backFile.createNewFile()
         FileUtil.copy(pubYamlFile, backFile)
@@ -168,10 +173,12 @@ class AssetsSyncAction : AnAction() {
                     if (i == 0) {
                         name.append(word)
                     } else {
-                        name.append(word.substring(0, 1).uppercase()).append(word.substring(1))
+                        name.append(word.substring(0, 1).toUpperCase())
+                            .append(word.substring(1))
                     }
                 }
-                rClass.append("  static final String ").append(name).append(" = ").append("\"").append(s).append("\";").append("\n")
+                rClass.append("  static final String ").append(name).append(" = ").append("\"")
+                    .append(s).append("\";").append("\n")
             }
             rClass.append("}")
             FileUtil.writeToFile(rFile, rClass.toString())
@@ -190,7 +197,7 @@ class AssetsSyncAction : AnAction() {
                     list.add(childFile.name)
                 }
                 if (childFile.isDirectory) {
-                    val childFolder = childFile.path.replace(basePath+File.separator, "")
+                    val childFolder = childFile.path.replace(basePath + File.separator, "")
                     assetsList.putAll(getSyncFolderFiles(basePath, childFolder))
                 }
             }
