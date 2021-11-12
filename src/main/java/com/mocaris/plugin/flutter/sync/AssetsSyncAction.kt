@@ -27,8 +27,9 @@ import kotlin.collections.HashMap
  * # sync-images-end
  */
 class AssetsSyncAction : AnAction() {
+
     override fun actionPerformed(e: AnActionEvent) {
-        val basePath = e.project!!.basePath
+        val basePath = File(e.project!!.basePath).path
         val pubYamlFile = File(basePath, "pubspec.yaml")
         if (!pubYamlFile.exists()) {
             Messages.showMessageDialog(
@@ -142,9 +143,8 @@ class AssetsSyncAction : AnAction() {
 
     @Throws(IOException::class)
     private fun write2Yaml(pubYamlFile: File, newYaml: ArrayList<String>) {
-        val filSuffix = SimpleDateFormat("YYYY-MM-dd HH:mm:ss").format(Date())
         val parentPath = pubYamlFile.parentFile.path
-        val backFile = File(parentPath, "pubspec.yaml.back-$filSuffix")
+        val backFile = File(parentPath, "pubspec-${System.currentTimeMillis()}.yaml.back")
         backFile.deleteOnExit()
         backFile.createNewFile()
         FileUtil.copy(pubYamlFile, backFile)
@@ -158,9 +158,7 @@ class AssetsSyncAction : AnAction() {
     @Throws(IOException::class)
     private fun write2RClass(basePath: String?, classR: List<String>) {
         val rFile = File(basePath, "lib/r.dart")
-        if (FileUtil.exists(rFile.path)) {
-            FileUtil.delete(rFile)
-        }
+        rFile.deleteOnExit()
         if (FileUtil.createIfDoesntExist(rFile)) {
             val rClass = StringBuilder()
             rClass.append("class R {").append("\n")
@@ -202,7 +200,7 @@ class AssetsSyncAction : AnAction() {
                 }
             }
         }
-        assetsList[folder.replace("\\", "/")] = list
+        assetsList[folder.replace(File.separator, "/")] = list
         return assetsList
     }
 
