@@ -1,6 +1,7 @@
 plugins {
-    id 'org.jetbrains.intellij' version '0.7.2'
-    id 'org.jetbrains.kotlin.jvm' version '1.4.21'
+    id 'org.jetbrains.intellij' version '0.7.3'
+//    id 'org.jetbrains.intellij' version '1.2.0'
+    id 'org.jetbrains.kotlin.jvm' version '1.5.31'
 }
 
 group 'org.mocaris.plugin'
@@ -17,5 +18,5 @@ dependencies {
 
 // See https://github.com/JetBrains/gradle-intellij-plugin/
 intellij {
-    version '2020.3.1'
+    version '2021.2.3'
 }
