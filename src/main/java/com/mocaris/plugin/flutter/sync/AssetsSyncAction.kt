@@ -13,6 +13,7 @@ import java.util.function.Consumer
 import java.util.regex.Pattern
 import kotlin.collections.ArrayList
 import kotlin.collections.HashMap
+import kotlin.collections.HashSet
 
 /**
  * 同步 assets 到 pubspec 创建 lib/r.dart 文件
@@ -29,18 +30,18 @@ import kotlin.collections.HashMap
 class AssetsSyncAction : AnAction() {
 
     override fun actionPerformed(e: AnActionEvent) {
-        val basePath = File(e.project!!.basePath).path
-        val pubYamlFile = File(basePath, "pubspec.yaml")
-        if (!pubYamlFile.exists()) {
-            Messages.showMessageDialog(
-                "The 'pubspec.yaml' does not exist.Please make sure this is a Flutter project",
-                "Not a Flutter Project",
-                Messages.getWarningIcon()
-            )
-            return
-        }
         try {
-            readPubspec(basePath!!, pubYamlFile)
+            val basePath = File(e.project!!.basePath).path!!
+            val pubYamlFile = File(basePath, "pubspec.yaml")
+            if (!pubYamlFile.exists()) {
+                Messages.showMessageDialog(
+                    "The 'pubspec.yaml' does not exist.Please make sure this is a Flutter project",
+                    "Not a Flutter Project",
+                    Messages.getWarningIcon()
+                )
+                return
+            }
+            readPubspec(basePath, pubYamlFile)
             Messages.showMessageDialog(
                 "Success",
                 "Assets Sync Tools Run Successful",
@@ -118,10 +119,10 @@ class AssetsSyncAction : AnAction() {
         //R 文件配置
         val classRField = ArrayList<String>()
         for (lines in syncLines) {
-            val syncFolderFiles = getSyncFolderFiles(basePath, lines.syncFolder)
+            val syncFolderFiles = getSyncFolderFiles(basePath, lines.syncFolder).toSortedMap()
             if (syncFolderFiles.isNotEmpty()) {
                 nodeLines.add("    # sync-" + lines.syncFolder + "-start")
-                syncFolderFiles.forEach { (syncFolder: String, files: List<String>) ->
+                syncFolderFiles.forEach { (syncFolder: String, files: Set<String>) ->
                     nodeLines.add("    # $syncFolder/*")
                     files.forEach { file: String ->
                         if (!file.startsWith(".")) {
@@ -157,8 +158,7 @@ class AssetsSyncAction : AnAction() {
 
     @Throws(IOException::class)
     private fun write2RClass(basePath: String?, classR: List<String>) {
-        val rFile = File(basePath, "lib/r.dart")
-        rFile.deleteOnExit()
+        val rFile = File(basePath, "lib${File.separator}r.dart")
         if (FileUtil.createIfDoesntExist(rFile)) {
             val rClass = StringBuilder()
             rClass.append("class R {").append("\n")
@@ -184,11 +184,11 @@ class AssetsSyncAction : AnAction() {
     }
 
     //需要同步的 文件夹  文件
-    private fun getSyncFolderFiles(basePath: String, folder: String): Map<String, List<String>> {
+    private fun getSyncFolderFiles(basePath: String, folder: String): Map<String, Set<String>> {
         //parent fileName
-        val assetsList: MutableMap<String, List<String>> = HashMap()
+        val assetsList: MutableMap<String, Set<String>> = HashMap()
         val folderFile = File(basePath, folder)
-        val list = ArrayList<String>()
+        val list = HashSet<String>()
         if (folderFile.exists()) {
             folderFile.listFiles()?.forEach { childFile ->
                 if (childFile.isFile) {
@@ -200,7 +200,7 @@ class AssetsSyncAction : AnAction() {
                 }
             }
         }
-        assetsList[folder.replace(File.separator, "/")] = list
+        assetsList[folder.replace(File.separator, "/")] = list.toSortedSet()
         return assetsList
     }
 
