@@ -4,16 +4,10 @@ import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.util.io.FileUtil
-import com.mocaris.plugin.flutter.sync.models.SyncLines
 import java.io.File
 import java.io.IOException
-import java.text.SimpleDateFormat
 import java.util.*
-import java.util.function.Consumer
 import java.util.regex.Pattern
-import kotlin.collections.ArrayList
-import kotlin.collections.HashMap
-import kotlin.collections.HashSet
 
 /**
  * 同步 assets 到 pubspec 创建 lib/r.dart 文件
@@ -31,7 +25,7 @@ class AssetsSyncAction : AnAction() {
 
     override fun actionPerformed(e: AnActionEvent) {
         try {
-            val basePath = File(e.project!!.basePath).path!!
+            val basePath = File(e.project!!.basePath).path
             val pubYamlFile = File(basePath, "pubspec.yaml")
             if (!pubYamlFile.exists()) {
                 Messages.showMessageDialog(
@@ -41,12 +35,14 @@ class AssetsSyncAction : AnAction() {
                 )
                 return
             }
-            readPubspec(basePath, pubYamlFile)
-            Messages.showMessageDialog(
-                "Success",
-                "Assets Sync Tools Run Successful",
-                Messages.getInformationIcon()
-            )
+            val b = readPubspec(basePath, pubYamlFile)
+            if (b) {
+                Messages.showMessageDialog(
+                    "Success",
+                    "Assets Sync Tools Run Successful",
+                    Messages.getInformationIcon()
+                )
+            }
         } catch (ioException: IOException) {
             Messages.showMessageDialog(
                 ioException.message,
@@ -56,26 +52,26 @@ class AssetsSyncAction : AnAction() {
         }
     }
 
+
     /*
      * 读取 yaml 内容
      */
     @Throws(IOException::class)
-    private fun readPubspec(basePath: String, pubYamlFile: File) {
+    private fun readPubspec(basePath: String, pubYamlFile: File): Boolean {
         val patternStart = Pattern.compile(syncRegStart)
         val patternEnd = Pattern.compile(syncRegEnd)
         var beforeEnd = false
         val syncNodeBefore = ArrayList<String>()
-        val syncLines = ArrayList<SyncLines>()
+        val syncLines = HashSet<String>()
         val syncNodeAfter = ArrayList<String>()
         val pubLines = ArrayList(FileUtil.loadLines(pubYamlFile))
         //查询配置 在哪一行
-        var tempLine: SyncLines? = null
+        var tempLine: String? = null
         for (i in pubLines.indices) {
             val line = pubLines[i]
             if (beforeEnd) {
                 syncNodeAfter.add(line)
-            }
-            if (!beforeEnd) {
+            } else {
                 syncNodeBefore.add(line)
             }
             if (!beforeEnd && line.trim { it <= ' ' }.startsWith("assets:")) {
@@ -84,17 +80,13 @@ class AssetsSyncAction : AnAction() {
             var matcher = patternStart.matcher(line)
             if (matcher.find()) {
                 //查询同步文件夹开始 提取需要同步的文件夹  # sync-assets-start
-                val syncFolder = matcher.group(1)
-                tempLine = SyncLines()
-                tempLine.lineStart = i + 1
-                tempLine.syncFolder = syncFolder
+                tempLine = matcher.group(1)
             } else {
                 matcher = patternEnd.matcher(line)
                 if (matcher.find()) {
                     //查询同步文件夹结束 匹配文件夹
                     val syncFolder = matcher.group(1)
-                    if (null != tempLine && tempLine.syncFolder == syncFolder) {
-                        tempLine.lineEnd = i + 1
+                    if (null != tempLine && tempLine == syncFolder) {
                         syncLines.add(tempLine)
                     }
                     tempLine = null
@@ -102,7 +94,16 @@ class AssetsSyncAction : AnAction() {
                 }
             }
         }
-        findWriteSyncFolderFiles(basePath, pubYamlFile, syncNodeBefore, syncNodeAfter, syncLines)
+        if (syncLines.isEmpty()) {
+            Messages.showMessageDialog(
+                "Please put the configuration items under the ‘assets’ node",
+                "Configuration not found",
+                Messages.getErrorIcon()
+            )
+            return false
+        }
+        findWriteSyncFolderFiles(basePath, pubYamlFile, syncNodeBefore, syncNodeAfter, syncLines.sorted())
+        return true
     }
 
     //解析查询到的配置
@@ -112,17 +113,26 @@ class AssetsSyncAction : AnAction() {
         pubYamlFile: File,
         syncNodeBefore: ArrayList<String>,
         syncNodeAfter: ArrayList<String>,
-        syncLines: ArrayList<SyncLines>
+        syncFolders: List<String>
     ) {
         //yaml 配置节点
-        val nodeLines = ArrayList<String>()
+        val nodeLines = LinkedList<String>()
         //R 文件配置
-        val classRField = ArrayList<String>()
-        for (lines in syncLines) {
-            val syncFolderFiles = getSyncFolderFiles(basePath, lines.syncFolder).toSortedMap()
+        val classRField = LinkedList<String>()
+        val regex = Regex(mutFolderReg)
+        for (syncFolder in syncFolders) {
+            val syncFolderFiles = getSyncFolderFiles(basePath, syncFolder).toMutableMap()
+            //去重
+            syncFolderFiles.forEach { s ->
+                if (s.key.contains(regex)) {
+                    val parent = s.key.replace(regex, "")
+                    syncFolderFiles[parent] = (syncFolderFiles[parent] ?: setOf<String>()).plus(s.value)
+                    syncFolderFiles.remove(s.key)
+                }
+            }
             if (syncFolderFiles.isNotEmpty()) {
-                nodeLines.add("    # sync-" + lines.syncFolder + "-start")
-                syncFolderFiles.forEach { (syncFolder: String, files: Set<String>) ->
+                nodeLines.add("    # sync-$syncFolder-start")
+                syncFolderFiles.toSortedMap().forEach { (syncFolder: String, files: Set<String>) ->
                     nodeLines.add("    # $syncFolder/*")
                     files.forEach { file: String ->
                         if (!file.startsWith(".")) {
@@ -131,10 +141,10 @@ class AssetsSyncAction : AnAction() {
                         }
                     }
                 }
-                nodeLines.add("    # sync-" + lines.syncFolder + "-end")
+                nodeLines.add("    # sync-$syncFolder-end")
             }
         }
-        val newYamlLines = ArrayList<String>()
+        val newYamlLines = LinkedList<String>()
         newYamlLines.addAll(syncNodeBefore)
         newYamlLines.addAll(nodeLines)
         newYamlLines.addAll(syncNodeAfter)
@@ -143,7 +153,7 @@ class AssetsSyncAction : AnAction() {
     }
 
     @Throws(IOException::class)
-    private fun write2Yaml(pubYamlFile: File, newYaml: ArrayList<String>) {
+    private fun write2Yaml(pubYamlFile: File, newYaml: LinkedList<String>) {
         val parentPath = pubYamlFile.parentFile.path
         val backFile = File(parentPath, "pubspec.yaml.back")
         backFile.deleteOnExit()
@@ -163,19 +173,22 @@ class AssetsSyncAction : AnAction() {
             val rClass = StringBuilder()
             rClass.append("class R {").append("\n")
             for (s in classR) {
-                val substring = s.substring(0, s.indexOf("."))
-                val split = substring.replace("_", "/").split("/").toTypedArray()
+                val split = s.replace(Regex("\\W"), "-").replace('_', '-').split("-").toMutableList()
                 val name = StringBuilder()
-                for (i in split.indices) {
-                    val word = split[i]
-                    if (i == 0) {
-                        name.append(word)
-                    } else {
-                        name.append(word.substring(0, 1).toUpperCase())
-                            .append(word.substring(1))
+                if (split.size > 1) {
+                    split.removeLast();
+                }
+                if (split.isNotEmpty()) {
+                    name.append(split.first());
+                    split.removeFirst();
+                }
+                if (split.isNotEmpty()) {
+                    for (word in split) {
+                        name.append(word.substring(0, 1).toUpperCase());
+                        name.append(word.substring(1));
                     }
                 }
-                rClass.append("  static final String ").append(name).append(" = ").append("\"")
+                rClass.append("  static const String ").append(name).append(" = ").append("\"")
                     .append(s).append("\";").append("\n")
             }
             rClass.append("}")
@@ -188,11 +201,11 @@ class AssetsSyncAction : AnAction() {
         //parent fileName
         val assetsList: MutableMap<String, Set<String>> = HashMap()
         val folderFile = File(basePath, folder)
-        val list = HashSet<String>()
+        val fileList = HashSet<String>()
         if (folderFile.exists()) {
             folderFile.listFiles()?.forEach { childFile ->
                 if (childFile.isFile) {
-                    list.add(childFile.name)
+                    fileList.add(childFile.name)
                 }
                 if (childFile.isDirectory) {
                     val childFolder = childFile.path.replace(basePath + File.separator, "")
@@ -200,12 +213,13 @@ class AssetsSyncAction : AnAction() {
                 }
             }
         }
-        assetsList[folder.replace(File.separator, "/")] = list.toSortedSet()
+        assetsList[folder.replace(File.separator, "/")] = fileList.toSortedSet()
         return assetsList
     }
 
     companion object {
-        private const val syncRegStart = "\\s*#\\s*sync-(\\w+/?\\w+)-start"
-        private const val syncRegEnd = "\\s*#\\s*sync-(\\w+/?\\w+)-end"
+        private const val mutFolderReg = "/[2-9](.\\d)?x"
+        private const val syncRegStart = "\\s*#\\s*sync-(\\w+/?\\w+)-start\\s*\\w*"
+        private const val syncRegEnd = "\\s*#\\s*sync-(\\w+/?\\w+)-end\\s*\\w*"
     }
 }
