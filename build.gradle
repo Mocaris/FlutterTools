@@ -1,5 +1,5 @@
 plugins {
-//    id 'org.jetbrains.intellij' version '0.7.2'
+//    id 'org.jetbrains.intellij' version '0.7.3'
     id 'org.jetbrains.intellij' version '1.1.4'
     id 'org.jetbrains.kotlin.jvm' version '1.6.0'
 }
@@ -10,6 +10,7 @@ apply plugin: 'idea'
 
 group 'org.mocaris.plugin'
 version '1.0.9'
+sourceCompatibility = 1.8
 
 repositories {
     mavenCentral()
@@ -22,6 +23,11 @@ dependencies {
 
 // See https://github.com/JetBrains/gradle-intellij-plugin/
 intellij {
-//    version '2020.3.1'
-    version '2020.3.1'
+    version '2021.2.3'
+    updateSinceUntilBuild = false
 }
+//runIde {
+//    // Absolute path to installed target 3.5 Android Studio to use as IDE Development Instance
+//    // The "Contents" directory is macOS specific.
+//    ideDir = file('/Applications/Android Studio.app/Contents')
+//}
