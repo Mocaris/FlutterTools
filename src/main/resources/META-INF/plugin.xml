@@ -52,6 +52,8 @@ AssetsSync 帮助扫描并生成资源 r.dart<br>
    ]]></description>
     <change-notes>
         <![CDATA[
+        1.0.10 update plugin <br>
+
         1.0.9 bug fixed <br>
 
         1.0.8 sort sync files <br>
