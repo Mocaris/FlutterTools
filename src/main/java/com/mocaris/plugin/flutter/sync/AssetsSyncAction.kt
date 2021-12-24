@@ -1,8 +1,8 @@
 package com.mocaris.plugin.flutter.sync
 
+import com.intellij.notification.NotificationType
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
-import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.util.io.FileUtil
 import java.io.File
 import java.io.IOException
@@ -28,27 +28,19 @@ class AssetsSyncAction : AnAction() {
             val basePath = File(e.project!!.basePath).path
             val pubYamlFile = File(basePath, "pubspec.yaml")
             if (!pubYamlFile.exists()) {
-                Messages.showMessageDialog(
-                    "The 'pubspec.yaml' does not exist.Please make sure this is a Flutter project",
+                Utils.notificationSticky(
                     "Not a Flutter Project",
-                    Messages.getWarningIcon()
+                    "The 'pubspec.yaml' does not exist.Please make sure this is a Flutter project",
+                    NotificationType.ERROR
                 )
                 return
             }
             val b = readPubspec(basePath, pubYamlFile)
             if (b) {
-                Messages.showMessageDialog(
-                    "Success",
-                    "Assets Sync Tools Run Successful",
-                    Messages.getInformationIcon()
-                )
+                Utils.notificationBalloon("Success", "Assets Sync Tools Run Successful", NotificationType.INFORMATION)
             }
         } catch (ioException: IOException) {
-            Messages.showMessageDialog(
-                ioException.message,
-                "Assets Sync Tools Run Failed",
-                Messages.getErrorIcon()
-            )
+            Utils.notificationSticky("Assets Sync Tools Run Error", ioException.message ?: "", NotificationType.ERROR)
         }
     }
 
@@ -95,11 +87,16 @@ class AssetsSyncAction : AnAction() {
             }
         }
         if (syncLines.isEmpty()) {
-            Messages.showMessageDialog(
+            Utils.notificationSticky(
+                "Assets Sync Tools Run Error",
                 "Please put the configuration items under the ‘assets’ node",
-                "Configuration not found",
-                Messages.getErrorIcon()
+                NotificationType.ERROR
             )
+            /*  Messages.showMessageDialog(
+                  "Please put the configuration items under the ‘assets’ node",
+                  "Configuration not found",
+                  Messages.getErrorIcon()
+              )*/
             return false
         }
         findWriteSyncFolderFiles(basePath, pubYamlFile, syncNodeBefore, syncNodeAfter, syncLines.sorted())
@@ -173,23 +170,37 @@ class AssetsSyncAction : AnAction() {
             val rClass = StringBuilder()
             rClass.append("class R {").append("\n")
             for (s in classR) {
-                val split = s.replace(Regex("\\W"), "-").replace('_', '-').split("-").toMutableList()
-                val name = StringBuilder()
-                if (split.size > 1) {
-                    split.removeLast();
-                }
-                if (split.isNotEmpty()) {
-                    name.append(split.first());
-                    split.removeFirst();
-                }
-                if (split.isNotEmpty()) {
-                    for (word in split) {
-                        name.append(word.substring(0, 1).toUpperCase());
-                        name.append(word.substring(1));
+                try {
+                    if (s.contains(" ")) {
+                        rClass.append("// TODO The file name '$s' contains empty characters,please check it again\n");
                     }
+                    val split = s.replace(Regex("\\W"), "-")
+                        .replace("_", "-")
+                        .replace(" ", "")
+                        .split("-").toMutableList()
+                    val name = StringBuilder()
+                    if (split.size > 1) {
+                        split.removeLast();
+                    }
+                    if (split.isNotEmpty()) {
+                        name.append(split.first());
+                        split.removeFirst();
+                    }
+                    for (word in split) {
+                        if (word.isNotEmpty()) {
+                            if (word.length > 1) {
+                                name.append(word.substring(0, 1).toUpperCase())
+                                name.append(word.substring(1));
+                            } else {
+                                name.append(word.toUpperCase())
+                            }
+                        }
+                    }
+                    rClass.append("  static const String ").append(name).append(" = ").append("\"")
+                        .append(s).append("\";").append("\n")
+                } catch (e: Exception) {
+                    Utils.notificationSticky("Synchronization error With file", s, NotificationType.ERROR)
                 }
-                rClass.append("  static const String ").append(name).append(" = ").append("\"")
-                    .append(s).append("\";").append("\n")
             }
             rClass.append("}")
             FileUtil.writeToFile(rFile, rClass.toString())
@@ -203,14 +214,18 @@ class AssetsSyncAction : AnAction() {
         val folderFile = File(basePath, folder)
         val fileList = HashSet<String>()
         if (folderFile.exists()) {
-            folderFile.listFiles()?.forEach { childFile ->
-                if (childFile.isFile) {
-                    fileList.add(childFile.name)
+            try {
+                folderFile.listFiles()?.forEach { childFile ->
+                    if (childFile.isFile) {
+                        fileList.add(childFile.name)
+                    }
+                    if (childFile.isDirectory) {
+                        val childFolder = childFile.path.replace(basePath + File.separator, "")
+                        assetsList.putAll(getSyncFolderFiles(basePath, childFolder))
+                    }
                 }
-                if (childFile.isDirectory) {
-                    val childFolder = childFile.path.replace(basePath + File.separator, "")
-                    assetsList.putAll(getSyncFolderFiles(basePath, childFolder))
-                }
+            } catch (e: Exception) {
+                Utils.notificationSticky("Synchronization error With file folder ", folder, NotificationType.ERROR)
             }
         }
         assetsList[folder.replace(File.separator, "/")] = fileList.toSortedSet()

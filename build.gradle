@@ -18,6 +18,8 @@ repositories {
 
 dependencies {
     implementation "org.jetbrains.kotlin:kotlin-stdlib"
+    // https://mvnrepository.com/artifact/org.yaml/snakeyaml
+//    implementation 'org.yaml:snakeyaml:1.30'
 }
 
 // See https://github.com/JetBrains/gradle-intellij-plugin/

@@ -67,25 +67,19 @@ AssetsSync 帮助扫描并生成资源 r.dart<br>
     <idea-version since-build="201.8743.12"/>
     <extensions defaultExtensionNs="com.intellij">
         <!-- Add your extensions here -->
+        <notificationGroup displayType="STICKY_BALLOON" id="notifi_sticky_balloon"/>
+        <notificationGroup displayType="BALLOON" id="notifi_balloon"/>
     </extensions>
 
     <actions>
         <!-- Add your actions here -->
-        <group text="FlutterTools"
-               popup="true"
-               compact="true"
-               id="FlutterTools.Mocaris">
-            <add-to-group group-id="ToolsMenu" anchor="first"/>
-            <action id="AssetsSync"
-                    popup="true"
-                    class="com.mocaris.plugin.flutter.sync.AssetsSyncAction"
-                    text="AssetsSync"
-                    description="A tool for synchronizing files"/>
-            <!--            <action class="com.mocaris.plugin.flutter.json.Json2DartAction"-->
-            <!--                    popup="true"-->
-            <!--                    id="Json2dart"-->
-            <!--                    description="A tool for json covert to dart class "-->
-            <!--                    text="Json2Dart"/>-->
+        <group compact="true" id="FlutterTools.Mocaris" popup="true" text="FlutterTools">
+            <add-to-group anchor="first" group-id="ToolsMenu"/>
+            <action class="com.mocaris.plugin.flutter.sync.AssetsSyncAction" description="A tool for synchronizing files" id="AssetsSync" popup="true"
+                    text="AssetsSync"/>
+            <action description="Run the 'flutter packages pub run build_runner build' command" id="RunFlutterBuildRunner" popup="true"
+                    text="RunFlutterBuildRunner"
+                    class="com.mocaris.plugin.flutter.sync.CommandAction"/>
         </group>
 
     </actions>
