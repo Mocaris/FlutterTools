@@ -52,7 +52,7 @@ AssetsSync 帮助扫描并生成资源 r.dart<br>
    ]]></description>
     <change-notes>
         <![CDATA[
-        1.0.11 bug fixed <br>
+        1.0.11 bug fixed,Using the Notification Api <br>
 
         1.0.10 update plugin <br>
 
