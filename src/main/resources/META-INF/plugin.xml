@@ -52,6 +52,8 @@ AssetsSync 帮助扫描并生成资源 r.dart<br>
    ]]></description>
     <change-notes>
         <![CDATA[
+        1.0.11 bug fixed <br>
+
         1.0.10 update plugin <br>
 
         1.0.9 bug fixed <br>
@@ -77,9 +79,6 @@ AssetsSync 帮助扫描并生成资源 r.dart<br>
             <add-to-group anchor="first" group-id="ToolsMenu"/>
             <action class="com.mocaris.plugin.flutter.sync.AssetsSyncAction" description="A tool for synchronizing files" id="AssetsSync" popup="true"
                     text="AssetsSync"/>
-            <action description="Run the 'flutter packages pub run build_runner build' command" id="RunFlutterBuildRunner" popup="true"
-                    text="RunFlutterBuildRunner"
-                    class="com.mocaris.plugin.flutter.sync.CommandAction"/>
         </group>
 
     </actions>
