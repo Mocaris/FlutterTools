@@ -4,7 +4,7 @@ plugins {
     id("org.jetbrains.intellij.platform") version "2.7.1"
 }
 
-group = "com.mocaris.plugin"
+group = "org.mocaris.plugin"
 version = "1.0.12"
 
 repositories {
