@@ -1,0 +1,77 @@
+<!-- Plugin Configuration File. Read more: https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html -->
+<idea-plugin>
+    <!-- Unique identifier of the plugin. It should be FQN. It cannot be changed between the plugin versions. -->
+    <id>com.mocaris.plugin.FlutterTools</id>
+
+    <!-- Public plugin name should be written in Title Case.
+         Guidelines: https://plugins.jetbrains.com/docs/marketplace/best-practices-for-listing.html#plugin-name -->
+    <name>FlutterTools</name>
+
+    <!-- A displayed Vendor name or Organization ID displayed on the Plugins Page. -->
+    <vendor email="imocaris@outlook.com" url="https://github.com/Mocaris/FlutterTools">Mocaris
+    </vendor>
+
+
+    <!-- Description of the plugin displayed on the Plugin Page and IDE Plugin Manager.
+         Guidelines: https://plugins.jetbrains.com/docs/marketplace/best-practices-for-listing.html#plugin-description -->
+    <description><![CDATA[
+<h3>FlutterTools can help you get things done quickly in development </h3>
+<br>
+
+<h3> Usage:</h3>
+Menu > FlutterTools > AssetsSync <br>
+<p>
+Please configure FlutterTools in pubspec.yaml first. <br>
+flutter:
+  ...
+  assets:
+  ...
+
+flutter_tools:                  # FlutterTools Config node
+  assets_sync:                  # assets sync node
+    sync_path:                  # assets sync path node
+      - assets/images           # sync images path demo
+      - assets/fonts            # sync fonts path demo
+    out_path:                   # class output path
+      lib/generated/r.dart      # default class output path, you can change it
+    out_class:                  # class name
+      R                         # default class name, you can change it
+
+</p>
+    ]]></description>
+    <change-notes>
+        <![CDATA[
+        1.0.12 update plugin and use yaml config<br>
+
+        1.0.11 bug fixed,Using the Notification Api <br>
+
+        1.0.10 update plugin <br>
+
+        1.0.9 bug fixed <br>
+
+        1.0.8 sort sync files <br>
+
+        1.0.7 fixed window path bug <br>
+         ]]>
+    </change-notes>
+    <!-- Product and plugin compatibility requirements.
+         Read more: https://plugins.jetbrains.com/docs/intellij/plugin-compatibility.html -->
+    <depends>com.intellij.modules.platform</depends>
+
+    <!-- Extension points defined by the plugin.
+         Read more: https://plugins.jetbrains.com/docs/intellij/plugin-extension-points.html -->
+    <extensions defaultExtensionNs="com.intellij">
+        <notificationGroup displayType="STICKY_BALLOON" id="notifi_sticky_balloon"/>
+        <notificationGroup displayType="BALLOON" id="notifi_balloon"/>
+    </extensions>
+    <actions>
+        <!-- Add your actions here -->
+        <group compact="true" id="FlutterTools.Mocaris" popup="true" text="FlutterTools">
+            <add-to-group anchor="first" group-id="ToolsMenu"/>
+            <action class="com.mocaris.plugin.flutter.tools.sync.AssetsAction"
+                    description="A tool for synchronizing files" id="AssetsSync" popup="true"
+                    text="AssetsSync"/>
+        </group>
+
+    </actions>
+</idea-plugin>
