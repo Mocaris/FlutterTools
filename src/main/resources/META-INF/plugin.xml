@@ -14,35 +14,53 @@
 
     <!-- Description of the plugin displayed on the Plugin Page and IDE Plugin Manager.
          Guidelines: https://plugins.jetbrains.com/docs/marketplace/best-practices-for-listing.html#plugin-description -->
-    <description><![CDATA[
-### FlutterTools can help you get things done quickly in development
+    <description>
+ ### FlutterTools can help you get things done quickly in development
 
----
+ ---
 
-### Usage
-`Menu > FlutterTools > AssetsSync`
+ ### Usage
+ `Menu > FlutterTools > AssetsSync`
 
-Please configure **FlutterTools** in `pubspec.yaml` first:
+ Please configure **FlutterTools** in `pubspec.yaml` first:
 
-```yaml
-flutter:
-  assets:
-    - assets/images
-    - assets/fonts
-    ...
+ ```yaml
+ flutter:
+ assets:
+ - assets/images
+ - assets/fonts
+ ...
 
-flutter_tools:                  # FlutterTools Config node
-  assets_sync:                  # assets sync node
-    sync_path:                  # assets sync path node
-      - assets/images           # sync images path demo
-      - assets/fonts            # sync fonts path demo
-    out_path:                   # class output path
-      lib/generated/r.dart      # default class output path, you can change it
-    out_class:                  # class name
-      R                         # default class name, you can change it
-```
-    ]]></description>
-    <change-notes/>
+ flutter_tools:                  # FlutterTools Config node
+   assets_sync:                  # assets sync node
+     sync_path:                  # assets sync path node
+       - assets/images           # sync images path demo
+       - assets/fonts            # sync fonts path demo
+     out_path:                   # class output path
+       lib/generated/r.dart      # default class output path, you can change it
+     out_class:                  # class name
+       R                         # default class name, you can change it
+ ```
+    </description>
+    <change-notes>
+## 1.0.12
+- update plugin and use yaml config
+
+## 1.0.11
+- bug fixed,Using the Notification Api
+
+## 1.0.10
+- update plugin
+
+## 1.0.9
+- bug fixed
+
+## 1.0.8
+- sort sync files
+
+## 1.0.7
+- fixed window path bug
+    </change-notes>
     <!-- Product and plugin compatibility requirements.
          Read more: https://plugins.jetbrains.com/docs/intellij/plugin-compatibility.html -->
     <depends>com.intellij.modules.platform</depends>
@@ -61,6 +79,5 @@ flutter_tools:                  # FlutterTools Config node
                     description="A tool for synchronizing files" id="AssetsSync" popup="true"
                     text="AssetsSync"/>
         </group>
-
     </actions>
 </idea-plugin>

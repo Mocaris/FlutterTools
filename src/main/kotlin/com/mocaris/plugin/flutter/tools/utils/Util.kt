@@ -1,9 +1,11 @@
-package com.mocaris.plugin.flutter.tools.sync
+package com.mocaris.plugin.flutter.tools.utils
 
-import com.intellij.notification.*
+import com.intellij.notification.Notification
+import com.intellij.notification.NotificationType
+import com.intellij.notification.Notifications
 import com.intellij.openapi.ui.Messages
 
-object Utils {
+object Util {
 
     fun notificationSticky(title: String, message: String, type: NotificationType) {
         /*val groupManager = NotificationGroupManager.getInstance()
