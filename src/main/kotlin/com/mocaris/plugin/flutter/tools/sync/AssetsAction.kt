@@ -1,13 +1,9 @@
 package com.mocaris.plugin.flutter.tools.sync
 
 import com.intellij.openapi.actionSystem.*
-import com.intellij.openapi.util.io.*
-import com.mocaris.plugin.flutter.tools.model.*
 import com.mocaris.plugin.flutter.tools.utils.*
 import kotlinx.coroutines.*
-import org.yaml.snakeyaml.*
 import java.io.*
-import kotlin.io.path.*
 
 
 class AssetsAction : AnAction() {

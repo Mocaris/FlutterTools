@@ -26,14 +26,16 @@ object AssetsClassGenHelper {
             toolsNodes["assets_sync"] as? Map<*, *>?
                 ?: throw NullPointerException("No assets_sync  node")
         val syncPath =
-            (syncNodes["sync_path"] as? List<*>?)?.map { it.toString() }
+            (syncNodes["sync_path"] as? List<*>?)?.map { it.toString() }?.toSet()
                 ?: throw NullPointerException("No sync_path node")
         val outPath = syncNodes["out_path"] as? String? ?: "lib/generated/r.dart"
         val outClass = syncNodes["out_class"] as? String? ?: "R"
+        val watch = syncNodes["watch"] as? Boolean? ?: false
         return AssetsSyncConfig(
             sync_path = syncPath,
             out_path = outPath,
-            out_class = outClass
+            out_class = outClass,
+            watcher = watch
         )
     }
 
@@ -122,21 +124,23 @@ object AssetsClassGenHelper {
         isMultiple: Boolean = false
     ): List<String> {
         val list = mutableSetOf<String>()
-        val rootPath = Path(projectPath)
-        if (file.isDirectory) {
-            val listFiles = file.listFiles() ?: return emptyList()
-            // 当前文件夹是否是倍数率文件夹
-            val isMultiple = file.nameWithoutExtension.matches(MUT_PATTERN)
-            for (subFile in listFiles) {
-                val mutFileList = getFileList(projectPath, subFile, isMultiple)
-                list.addAll(mutFileList)
+        if (file.exists()) {
+            val rootPath = Path(projectPath)
+            if (file.isDirectory) {
+                val listFiles = file.listFiles() ?: return emptyList()
+                // 当前文件夹是否是倍数率文件夹
+                val isMultiple = file.nameWithoutExtension.matches(MUT_PATTERN)
+                for (subFile in listFiles) {
+                    val mutFileList = getFileList(projectPath, subFile, isMultiple)
+                    list.addAll(mutFileList)
+                }
+            } else {
+                val finalFile: File = if (isMultiple) {
+                    File(file.parentFile.parent, file.name)
+                } else file
+                // file path 转为 linux path
+                list.add(toLinuxPath(rootPath.relativize(finalFile.toPath()).toString()))
             }
-        } else {
-            val finalFile: File = if (isMultiple) {
-                File(file.parentFile.parent, file.name)
-            } else file
-            // file path 转为 linux path
-            list.add(toLinuxPath(rootPath.relativize(finalFile.toPath()).toString()))
         }
         return list.sortedBy { it.lowercase() }
     }

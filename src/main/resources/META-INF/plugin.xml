@@ -40,6 +40,7 @@
        lib/generated/r.dart      # default class output path, you can change it
      out_class:                  # class name
        R                         # default class name, you can change it
+     watch: true                 # watch assets sync and generate class
  ```
     </description>
     <change-notes>
@@ -68,6 +69,7 @@
     <!-- Extension points defined by the plugin.
          Read more: https://plugins.jetbrains.com/docs/intellij/plugin-extension-points.html -->
     <extensions defaultExtensionNs="com.intellij">
+        <postStartupActivity implementation="com.mocaris.plugin.flutter.tools.FlutterToolsActivity"/>
         <notificationGroup displayType="STICKY_BALLOON" id="notifi_sticky_balloon"/>
         <notificationGroup displayType="BALLOON" id="notifi_balloon"/>
     </extensions>
