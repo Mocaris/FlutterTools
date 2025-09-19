@@ -2,21 +2,16 @@ package com.mocaris.plugin.flutter.tools.sync
 
 import com.intellij.notification.*
 import com.intellij.openapi.components.*
-import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.*
 import com.intellij.openapi.vfs.*
-import com.intellij.openapi.vfs.newvfs.BulkFileListener
-import com.intellij.openapi.vfs.newvfs.events.VFileContentChangeEvent
-import com.intellij.openapi.vfs.newvfs.events.VFileCopyEvent
-import com.intellij.openapi.vfs.newvfs.events.VFileCreateEvent
-import com.intellij.openapi.vfs.newvfs.events.VFileDeleteEvent
-import com.intellij.openapi.vfs.newvfs.events.VFileEvent
-import com.intellij.openapi.vfs.newvfs.events.VFileMoveEvent
-import com.intellij.util.messages.MessageBusConnection
+import com.intellij.openapi.vfs.newvfs.*
+import com.intellij.openapi.vfs.newvfs.events.*
+import com.intellij.util.messages.*
 import com.mocaris.plugin.flutter.tools.model.*
 import com.mocaris.plugin.flutter.tools.utils.*
 import kotlinx.coroutines.*
 import java.io.*
+import java.util.Timer
 
 private const val PUBSPEC_FILE_NAME = "pubspec.yaml"
 
@@ -32,6 +27,14 @@ class AssetsFileWatcherService(private val project: Project) : BulkFileListener 
 
     private val watchDirPath = mutableSetOf<String>()
 
+    private val isWatcher get() = config?.watcher == true
+
+    var handleYamlJob: Job? = null
+    var generateJob: Job? = null
+    var handleFileJob: Job? = null
+
+    private val changeFileList = mutableSetOf<String>()
+
     init {
         connection.subscribe(VirtualFileManager.VFS_CHANGES, this)
         scope.launch {
@@ -45,53 +48,78 @@ class AssetsFileWatcherService(private val project: Project) : BulkFileListener 
         for (event in events) {
             when (event) {
                 is VFileContentChangeEvent -> {
-                    if (event.isFromSave && event.file.path == yamlFile.path) {
-                        handleYaml()
+                    if (event.isFromSave) {
+                        handleFileSave(event)
                     }
                 }
 
-                is VFileCreateEvent -> checkEventHandle(event)
+                is VFileCreateEvent -> handleChangeFile(event)
 
-                is VFileDeleteEvent -> checkEventHandle(event)
+                is VFileDeleteEvent -> handleChangeFile(event)
 
-                is VFileCopyEvent -> checkEventHandle(event)
+                is VFileCopyEvent -> handleChangeFile(event)
 
-                is VFileMoveEvent -> checkEventHandle(event)
+                is VFileMoveEvent -> handleChangeFile(event)
             }
         }
     }
 
-    private fun checkEventHandle(event: VFileEvent) {
-        scope.launch {
-            val filePath = event.file!!.path
-            if (null == config || config?.watcher != true) {
+    private fun handleFileSave(event: VFileEvent) {
+        if (event.file?.path != yamlFile.path) {
+            return
+        }
+        handleYaml()
+    }
+
+    private fun handleChangeFile(event: VFileEvent) {
+        if (!isWatcher) {
+            return
+        }
+        event.file?.path?.let {
+            changeFileList.add(it)
+        }
+        handleWatch()
+    }
+
+    private fun handleWatch() {
+        handleFileJob?.cancel()
+        handleFileJob = scope.launch {
+            delay(2000)
+            if (!isActive) {
                 return@launch
             }
             if (watchDirPath.isEmpty()) {
                 return@launch
             }
-            var needSync = false
-            for (syncDir in watchDirPath) {
-                if (filePath.startsWith(syncDir)) {
-                    needSync = true
-                    break
-                }
-            }
-            if (!needSync) {
+            if (changeFileList.isEmpty()) {
                 return@launch
             }
-            handleGenerate(config!!)
+            try {
+                var needSync = false
+                for (changeFile in changeFileList) {
+                    needSync = watchDirPath.any { changeFile.startsWith(it) }
+                    if (needSync) {
+                        break
+                    }
+                }
+                if (!needSync) {
+                    return@launch
+                }
+                handleGenerate()
+            } finally {
+                changeFileList.clear()
+            }
         }
     }
 
-
-    var handleYamlJob: Job? = null
     private fun handleYaml(isInit: Boolean = false) {
-        if (handleYamlJob?.isActive == true) {
-            return
-        }
+        handleYamlJob?.cancel()
         handleYamlJob = scope.launch {
+            delay(2000)
             try {
+                if (!isActive) {
+                    return@launch
+                }
                 if (!yamlFile.exists()) {
                     return@launch
                 }
@@ -115,24 +143,29 @@ class AssetsFileWatcherService(private val project: Project) : BulkFileListener 
                 if (syPaths.isEmpty()) {
                     return@launch
                 }
-                handleGenerate(newConfig)
+
+                handleGenerate()
             } catch (e: Exception) {
                 e.printStackTrace()
             }
         }
     }
 
-    var generateJob: Job? = null
-    private fun handleGenerate(newConfig: AssetsSyncConfig) {
+    private fun handleGenerate() {
         if (generateJob?.isActive == true) {
             return
         }
         generateJob = scope.launch {
             try {
-                AssetsClassGenHelper.startSyncGen(projectBasePath, newConfig)
+                AssetsClassGenHelper.startSyncGen(projectBasePath, config!!)
+                Util.notificationSticky(
+                    "Flutter Tools",
+                    "Assets Sync Tools Run Successful",
+                    NotificationType.INFORMATION
+                )
             } catch (e: Exception) {
                 Util.notificationSticky(
-                    "AssetsSync",
+                    "Flutter Tools",
                     "Sync Failed: ${e.message}",
                     NotificationType.ERROR
                 )

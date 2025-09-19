@@ -123,24 +123,25 @@ object AssetsClassGenHelper {
         file: File,
         isMultiple: Boolean = false
     ): List<String> {
+        if (!file.exists()) {
+            return emptyList()
+        }
         val list = mutableSetOf<String>()
-        if (file.exists()) {
-            val rootPath = Path(projectPath)
-            if (file.isDirectory) {
-                val listFiles = file.listFiles() ?: return emptyList()
-                // 当前文件夹是否是倍数率文件夹
-                val isMultiple = file.nameWithoutExtension.matches(MUT_PATTERN)
-                for (subFile in listFiles) {
-                    val mutFileList = getFileList(projectPath, subFile, isMultiple)
-                    list.addAll(mutFileList)
-                }
-            } else {
-                val finalFile: File = if (isMultiple) {
-                    File(file.parentFile.parent, file.name)
-                } else file
-                // file path 转为 linux path
-                list.add(toLinuxPath(rootPath.relativize(finalFile.toPath()).toString()))
+        val rootPath = Path(projectPath)
+        if (file.isDirectory) {
+            val listFiles = file.listFiles() ?: return emptyList()
+            // 当前文件夹是否是倍数率文件夹
+            val isMultiple = file.name.matches(MUT_PATTERN)
+            for (subFile in listFiles) {
+                val mutFileList = getFileList(projectPath, subFile, isMultiple)
+                list.addAll(mutFileList)
             }
+        } else {
+            val finalFile: File = if (isMultiple) {
+                File(file.parentFile.parent, file.name)
+            } else file
+            // file path 转为 linux path
+            list.add(toLinuxPath(rootPath.relativize(finalFile.toPath()).toString()))
         }
         return list.sortedBy { it.lowercase() }
     }

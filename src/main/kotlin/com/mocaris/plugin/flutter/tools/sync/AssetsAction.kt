@@ -23,7 +23,7 @@ class AssetsAction : AnAction() {
                 AssetsClassGenHelper.startSyncGen(projectPath, syncConfig)
                 withContext(Dispatchers.Main) {
                     Util.showOkDialog(
-                        "AssetsSync Success",
+                        "Flutter Tools",
                         "Assets Sync Tools Run Successful",
                     )
                 }
@@ -31,8 +31,8 @@ class AssetsAction : AnAction() {
                 e.printStackTrace()
                 withContext(Dispatchers.Main) {
                     Util.showErrorDialog(
-                        "FlutterTools AssetsSync Generate Error",
-                        e.message ?: "",
+                        "Flutter Tools",
+                        "Assets Sync Tools Run Error\n${e.message ?: ""}",
                     )
                 }
             }
