@@ -15,11 +15,12 @@ class AssetsAction : AnAction() {
             try {
                 val project = e.project
                 val projectPath = project?.basePath ?: throw IOException("Not a Flutter Project")
-                val pubYamlFile = File(projectPath, "pubspec.yaml")
-                if (!pubYamlFile.exists()) {
-                    throw IllegalStateException("The 'pubspec.yaml' does not exist. Please make sure this is a Flutter project")
+                val toolsYamlFile = File(projectPath, TOOLS_FILE_NAME)
+                val pubYamlFile = File(projectPath, PUBSPEC_FILE_NAME)
+                if (!toolsYamlFile.exists() && !pubYamlFile.exists()) {
+                    throw IllegalStateException("The $TOOLS_FILE_NAME and $PUBSPEC_FILE_NAME does not exist. Please make sure this is a Flutter project")
                 }
-                val syncConfig = AssetsClassGenHelper.parseYaml(pubYamlFile)
+                val syncConfig = AssetsClassGenHelper.parseYaml(toolsYamlFile, pubYamlFile)
                 AssetsClassGenHelper.startSyncGen(projectPath, syncConfig)
                 withContext(Dispatchers.Main) {
                     Util.showOkDialog(

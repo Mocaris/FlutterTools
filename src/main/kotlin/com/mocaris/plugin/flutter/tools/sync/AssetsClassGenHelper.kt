@@ -1,24 +1,34 @@
 package com.mocaris.plugin.flutter.tools.sync
 
-import com.intellij.openapi.util.io.FileUtil
-import com.mocaris.plugin.flutter.tools.model.AssetsSyncConfig
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import org.yaml.snakeyaml.Yaml
-import java.io.File
-import java.io.FileReader
-import java.io.FileWriter
-import java.io.IOException
-import kotlin.io.path.Path
+import com.intellij.openapi.util.io.*
+import com.mocaris.plugin.flutter.tools.model.*
+import kotlinx.coroutines.*
+import org.yaml.snakeyaml.*
+import java.io.*
+import kotlin.io.path.*
+
+const val PUBSPEC_FILE_NAME = "pubspec.yaml"
+const val TOOLS_FILE_NAME = "flutter_tools.yaml"
 
 private val MUT_PATTERN = Regex("^[0-9]+(.[0-9]+)?[xX]$")
+
+private const val DEFAULT_OUT_PATH = "lib/r.dart"
+private const val DEFAULT_OUT_CLASS = "R"
 
 object AssetsClassGenHelper {
 
     @Throws(Exception::class)
-    fun parseYaml(pubYamlFile: File): AssetsSyncConfig {
+    fun parseYaml(toolsYamlFile: File, pubYamlFile: File): AssetsSyncConfig {
+        return try {
+            loadYamlConfig(toolsYamlFile)
+        } catch (e: Exception) {
+            loadYamlConfig(pubYamlFile)
+        }
+    }
+
+    private fun loadYamlConfig(yamlFile: File): AssetsSyncConfig {
         val yaml = Yaml()
-        val yamlMap = yaml.load<Map<String, Any>>(FileReader(pubYamlFile))
+        val yamlMap = yaml.load<Map<String, Any>>(FileReader(yamlFile))
         val toolsNodes =
             yamlMap["flutter_tools"] as? Map<*, *>?
                 ?: throw NullPointerException("No flutter_tools  node")
@@ -28,8 +38,8 @@ object AssetsClassGenHelper {
         val syncPath =
             (syncNodes["sync_path"] as? List<*>?)?.map { it.toString() }?.toSet()
                 ?: throw NullPointerException("No sync_path node")
-        val outPath = syncNodes["out_path"] as? String? ?: "lib/generated/r.dart"
-        val outClass = syncNodes["out_class"] as? String? ?: "R"
+        val outPath = syncNodes["out_path"] as? String? ?: DEFAULT_OUT_PATH
+        val outClass = syncNodes["out_class"] as? String? ?: DEFAULT_OUT_CLASS
         val watch = syncNodes["watch"] as? Boolean? ?: false
         return AssetsSyncConfig(
             sync_path = syncPath,
@@ -64,7 +74,7 @@ object AssetsClassGenHelper {
         className: String,
         pathList: List<String>
     ) {
-        val classFile = File(projectPath, classPath)
+        val classFile = File(projectPath, toSystemPath(classPath))
         if (!FileUtil.createIfDoesntExist(classFile)) {
             throw IOException("$className can not be created")
         }
@@ -109,7 +119,9 @@ object AssetsClassGenHelper {
     private fun getFilePathList(projectPath: String, list: Set<String>): List<String> {
         val pathList = mutableListOf<String>()
         for (path in list) {
-            val fileList = getFileList(projectPath, File(projectPath, path))
+            val syncFile = File(projectPath, toSystemPath(path))
+            val isMultiple = syncFile.name.matches(MUT_PATTERN)
+            val fileList = getFileList(projectPath, syncFile, isMultiple)
             pathList.addAll(fileList)
         }
         return pathList
@@ -150,6 +162,13 @@ object AssetsClassGenHelper {
         // 将 windows path 转为 linux path
         if (File.separator != "/") {
             return path.replace(File.separator, "/")
+        }
+        return path
+    }
+
+    private fun toSystemPath(path: String): String {
+        if (File.separator != "/") {
+            return path.replace("/", File.separator)
         }
         return path
     }

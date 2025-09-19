@@ -13,7 +13,6 @@ import kotlinx.coroutines.*
 import java.io.*
 import java.util.Timer
 
-private const val PUBSPEC_FILE_NAME = "pubspec.yaml"
 
 @Service(Service.Level.PROJECT)
 class AssetsFileWatcherService(private val project: Project) : BulkFileListener {
@@ -23,7 +22,8 @@ class AssetsFileWatcherService(private val project: Project) : BulkFileListener 
     private var config: AssetsSyncConfig? = null
 
     private val scope = CoroutineScope(Dispatchers.IO)
-    private val yamlFile by lazy { File(projectBasePath, PUBSPEC_FILE_NAME) }
+    private val toolsYamlFile by lazy { File(projectBasePath, TOOLS_FILE_NAME) }
+    private val pubYamlFile by lazy { File(projectBasePath, PUBSPEC_FILE_NAME) }
 
     private val watchDirPath = mutableSetOf<String>()
 
@@ -37,11 +37,7 @@ class AssetsFileWatcherService(private val project: Project) : BulkFileListener 
 
     init {
         connection.subscribe(VirtualFileManager.VFS_CHANGES, this)
-        scope.launch {
-            if (yamlFile.exists()) {
-                handleYaml(isInit = true)
-            }
-        }
+        handleYaml(isInit = true)
     }
 
     override fun after(events: List<VFileEvent>) {
@@ -65,7 +61,10 @@ class AssetsFileWatcherService(private val project: Project) : BulkFileListener 
     }
 
     private fun handleFileSave(event: VFileEvent) {
-        if (event.file?.path != yamlFile.path) {
+        val isYamlPath = event.file?.path?.let {
+            it == toolsYamlFile.path || it == pubYamlFile.path
+        }
+        if (isYamlPath != true) {
             return
         }
         handleYaml()
@@ -120,11 +119,11 @@ class AssetsFileWatcherService(private val project: Project) : BulkFileListener 
                 if (!isActive) {
                     return@launch
                 }
-                if (!yamlFile.exists()) {
+                if (!toolsYamlFile.exists() && !pubYamlFile.exists()) {
                     return@launch
                 }
                 val oldConfig = config?.copy()
-                val newConfig = AssetsClassGenHelper.parseYaml(yamlFile).also {
+                val newConfig = AssetsClassGenHelper.parseYaml(toolsYamlFile, pubYamlFile).also {
                     config = it
                     watchDirPath.clear()
                     watchDirPath.addAll(it.sync_path.map { t -> File(projectBasePath, t).path })
