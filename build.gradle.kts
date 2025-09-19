@@ -1,7 +1,9 @@
+import org.jetbrains.changelog.markdownToHTML
 plugins {
     id("java")
     id("org.jetbrains.kotlin.jvm") version "2.1.0"
     id("org.jetbrains.intellij.platform") version "2.7.1"
+    id("org.jetbrains.changelog") version "2.2.1"
 }
 
 group = "org.mocaris.plugin"
@@ -47,4 +49,8 @@ kotlin {
     compilerOptions {
         jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11)
     }
+}
+tasks.patchPluginXml {
+    pluginDescription.set(markdownToHTML(File(rootDir, "pluginDescription.md").readText()))
+    changeNotes.set(markdownToHTML(File(rootDir, "changeNotes.md").readText()))
 }
