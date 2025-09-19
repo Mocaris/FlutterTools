@@ -20,8 +20,8 @@ Please configure **FlutterTools** in `pubspec.yaml` first:
        - assets/images           # sync images path demo
        - assets/fonts            # sync fonts path demo
      out_path:                   # class output path
-       lib/generated/r.dart      # default class output path, you can change it
-     out_class:                  # class name
-       R                         # default class name, you can change it
-     watch: true                 # watch assets sync and generate class
+       lib/generated/r.dart      # output class file path, you can change it, default lib/generated/r.dart
+     out_class:                  # class name node
+       R                         # output class name, default R
+     watch: true                 # watch assets sync and generate class, default false
  ```
