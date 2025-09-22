@@ -1,6 +1,7 @@
 package com.mocaris.plugin.flutter.tools.sync
 
 import com.intellij.openapi.util.io.*
+import com.intellij.openapi.vfs.LocalFileSystem
 import com.mocaris.plugin.flutter.tools.model.*
 import kotlinx.coroutines.*
 import org.yaml.snakeyaml.*
@@ -74,10 +75,12 @@ object AssetsClassGenHelper {
         className: String,
         pathList: List<String>
     ) {
-        val classFile = File(projectPath, toSystemPath(classPath))
+        val project = File(projectPath)
+        val classFile = File(project, toSystemPath(classPath))
         if (!FileUtil.createIfDoesntExist(classFile)) {
             throw IOException("$className can not be created")
         }
+        val projectName = project.name
         val fileWriter = FileWriter(classFile)
         try {
             fileWriter.appendLine()
@@ -89,19 +92,7 @@ object AssetsClassGenHelper {
                     if (path.contains(" ")) {
                         fileWriter.appendLine("// TODO The file name '$path' contains empty characters,please check it again");
                     }
-                    val classFieldName = path.let {
-                        if (it.contains(".")) {
-                            it.substringBeforeLast(".")
-                        } else it
-                    }.replace(Regex("\\W"), "_")
-                        .replace(".", "_")
-                        .replace(" ", "_")
-                        .split("_").toMutableList()
-                    val fieldName = classFieldName.mapIndexed { i, it ->
-                        if (i != 0) {
-                            it.replaceFirstChar { it.uppercase() }
-                        } else it
-                    }.joinToString("")
+                    val fieldName = pathConvertFieldName(projectName, path)
                     fileWriter.appendLine("  static const String $fieldName = \"$path\";")
                 } catch (e: Exception) {
                     fileWriter.appendLine("// TODO $path generate error,please check it again")
@@ -113,8 +104,26 @@ object AssetsClassGenHelper {
         } finally {
             fileWriter.close()
         }
+        LocalFileSystem.getInstance().refreshAndFindFileByIoFile(classFile)
     }
 
+    private fun pathConvertFieldName(projectName: String, path: String): String {
+        val classFieldName = path.let {
+            if (it.contains(".")) {
+                it.substringBeforeLast(".")
+                    .ifEmpty { "${projectName}_root_${it}" }
+            } else it
+        }.replace(Regex("\\W"), "_")
+            .removePrefix("_")
+            .split("_")
+            .toMutableList()
+        val fieldName = classFieldName.mapIndexed { i, it ->
+            if (i != 0) {
+                it.replaceFirstChar { it.uppercase() }
+            } else it
+        }.joinToString("")
+        return fieldName
+    }
 
     private fun getFilePathList(projectPath: String, list: Set<String>): List<String> {
         val pathList = mutableListOf<String>()

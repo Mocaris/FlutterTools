@@ -5,7 +5,8 @@
 ### Usage
 `Menu > FlutterTools > AssetsSync`
 
-Please configure **FlutterTools** in `flutter_tools.yaml` or `pubspec.yaml` first:
+#### Please configure **FlutterTools** in `flutter_tools.yaml` or `pubspec.yaml` first.  
+> if `flutter_tools.yaml` and `pubspec.yaml` exist, `flutter_tools.yaml` will be used.
 
  ```yaml
  flutter_tools:                  # FlutterTools Config node

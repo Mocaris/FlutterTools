@@ -11,7 +11,6 @@ import com.mocaris.plugin.flutter.tools.model.*
 import com.mocaris.plugin.flutter.tools.utils.*
 import kotlinx.coroutines.*
 import java.io.*
-import java.util.Timer
 
 
 @Service(Service.Level.PROJECT)
@@ -61,10 +60,10 @@ class AssetsFileWatcherService(private val project: Project) : BulkFileListener 
     }
 
     private fun handleFileSave(event: VFileEvent) {
-        val isYamlPath = event.file?.path?.let {
+        val isConfigPath = event.file?.path?.let {
             it == toolsYamlFile.path || it == pubYamlFile.path
         }
-        if (isYamlPath != true) {
+        if (isConfigPath != true) {
             return
         }
         handleYaml()
