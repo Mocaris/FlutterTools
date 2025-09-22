@@ -20,3 +20,14 @@
        R                         # output class name, default R
      watch: false                # watch assets sync and generate class, default false
  ```
+---
+When there is a multi-power folder in the configuration directory, the multi-power resource paths will be merged, such as:
+
+> assets/images/app_logo.png  
+> assets/images/2.0x/app_logo.png
+
+```dart
+class R {
+  static const String assetsImageAppLogo = "assets/images/app_logo.png";
+}
+```
