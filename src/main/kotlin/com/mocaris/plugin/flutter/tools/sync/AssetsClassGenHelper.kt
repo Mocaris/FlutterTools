@@ -1,20 +1,12 @@
 package com.mocaris.plugin.flutter.tools.sync
 
 import com.intellij.openapi.util.io.*
-import com.intellij.openapi.vfs.LocalFileSystem
+import com.intellij.openapi.vfs.*
 import com.mocaris.plugin.flutter.tools.model.*
 import kotlinx.coroutines.*
 import org.yaml.snakeyaml.*
 import java.io.*
 import kotlin.io.path.*
-
-const val PUBSPEC_FILE_NAME = "pubspec.yaml"
-const val TOOLS_FILE_NAME = "flutter_tools.yaml"
-
-private val MUT_PATTERN = Regex("^[0-9]+(.[0-9]+)?[xX]$")
-
-private const val DEFAULT_OUT_PATH = "lib/r.dart"
-private const val DEFAULT_OUT_CLASS = "R"
 
 object AssetsClassGenHelper {
 
@@ -41,12 +33,15 @@ object AssetsClassGenHelper {
                 ?: throw NullPointerException("No sync_path node")
         val outPath = syncNodes["out_path"] as? String? ?: DEFAULT_OUT_PATH
         val outClass = syncNodes["out_class"] as? String? ?: DEFAULT_OUT_CLASS
+        val excluded = (syncNodes["excluded"] as? List<*>?)?.map { it.toString() }?.toSet()
+            ?: DEFAULT_EXCLUDE
         val watch = syncNodes["watch"] as? Boolean? ?: false
         return AssetsSyncConfig(
             sync_path = syncPath,
             out_path = outPath,
             out_class = outClass,
-            watcher = watch
+            watcher = watch,
+            excluded = excluded
         )
     }
 
@@ -57,7 +52,8 @@ object AssetsClassGenHelper {
     ) = withContext(Dispatchers.IO) {
         val pathList = getFilePathList(
             projectPath,
-            syncConfig.sync_path.toSet()
+            syncConfig.sync_path.toSet(),
+            syncConfig.excluded,
         )
         writeClass(
             projectPath,
@@ -127,7 +123,11 @@ object AssetsClassGenHelper {
         return fieldName
     }
 
-    private fun getFilePathList(projectPath: String, list: Set<String>): List<AssetsNode> {
+    private fun getFilePathList(
+        projectPath: String,
+        list: Set<String>,
+        excluded: Set<String>
+    ): List<AssetsNode> {
         val pathList = mutableSetOf<AssetsNode>()
         for (path in list) {
             val syncFile = File(projectPath, toSystemPath(path))
@@ -135,7 +135,62 @@ object AssetsClassGenHelper {
             val fileList = getFileList(projectPath, syncFile, isMultiple)
             pathList.addAll(fileList)
         }
+        val regexes = excluded.map { patternToRegex(it) }
+
+        pathList.removeAll { shouldExclude(it, regexes) }
         return pathList.sortedBy { it.parentPath.lowercase() }
+    }
+
+    //排除 匹配规则
+    // 1. 匹配全部字符串
+    // 2. 匹配 *.filename
+    // 3. 匹配 filename.*
+    // 4. 匹配 assets/path/*
+    // 5. 匹配 assets/path/
+    // 6. 匹配 assets/path
+    private fun shouldExclude(node: AssetsNode, patterns: List<Regex>): Boolean {
+        val path = node.path
+        return patterns.any {
+            it.matches(path)
+        }
+    }
+
+    private fun patternToRegex(pattern: String): Regex {
+        return when {
+            // start with *
+            pattern.startsWith("*") -> {
+                val ext = Regex.escape(pattern.removePrefix("*"))
+                Regex("^(.+)?$ext$")
+            }
+
+            // end with *
+            pattern.endsWith("*") -> {
+                val prefix = Regex.escape(pattern.removeSuffix("*"))
+                Regex("^${prefix}(.+)?$")
+            }
+
+            pattern.contains("*") -> {
+                val prefix = Regex.escape(pattern.replace("*", ".+"))
+                Regex("^${prefix}$")
+            }
+            // end with /  or end with /*
+            // path/path/ or path/path/*
+            pattern.endsWith("/") || pattern.endsWith("/*") -> {
+                val prefix = Regex.escape(pattern.removeSuffix("*").removeSuffix("/"))
+                Regex("^${prefix}(.+)?$")
+            }
+
+            !pattern.contains(".") -> {
+                Regex("^${Regex.escape(pattern)}(.+)?$")
+            }
+
+            pattern.startsWith(".") -> {
+                Regex("^(.+)?${Regex.escape(pattern)}$")
+            }
+
+            // 完整路径
+            else -> Regex("^${Regex.escape(pattern)}$")
+        }
     }
 
     //获取 单个 文件或文件夹下的文件

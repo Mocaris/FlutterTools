@@ -1,6 +1,7 @@
 package com.mocaris.plugin.flutter.tools.sync
 
 import com.intellij.openapi.actionSystem.*
+import com.mocaris.plugin.flutter.tools.model.*
 import com.mocaris.plugin.flutter.tools.utils.*
 import kotlinx.coroutines.*
 import java.io.*
