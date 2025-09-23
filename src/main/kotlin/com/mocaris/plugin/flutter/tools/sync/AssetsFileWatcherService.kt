@@ -60,7 +60,7 @@ class AssetsFileWatcherService(private val project: Project) : BulkFileListener 
     }
 
     private fun handleFileSave(event: VFileEvent) {
-        val isConfigPath = event.file?.path?.let {
+        val isConfigPath = event.file?.path?.let { File(it).path }?.let {
             it == toolsYamlFile.path || it == pubYamlFile.path
         }
         if (isConfigPath != true) {
@@ -74,7 +74,7 @@ class AssetsFileWatcherService(private val project: Project) : BulkFileListener 
             return
         }
         event.file?.path?.let {
-            changeFileList.add(it)
+            changeFileList.add(File(it).path)
         }
         handleWatch()
     }
