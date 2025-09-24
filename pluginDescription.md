@@ -12,10 +12,10 @@
  flutter_tools:                  # FlutterTools Config node
    assets_sync:                  # assets sync node
      excluded:
-       - '*.DS_Store'            # excluded path node
-       - '*.png'                 # excluded path node
-       - assets/hide/            # excluded path node
-       - assets/images/logo.png  # excluded path node
+       - '*.DS_Store'            # excluded with file extension demo
+       - '*.png'                 # excluded with file extension demo 
+       - assets/hide/            # excluded dir path demo
+       - assets/images/logo.png  # excluded file path demo
      sync_path:                  # assets sync path node
        - assets/images           # sync images path demo
        - assets/fonts            # sync fonts path demo
