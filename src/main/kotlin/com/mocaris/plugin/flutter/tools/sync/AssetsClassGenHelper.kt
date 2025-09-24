@@ -36,11 +36,13 @@ object AssetsClassGenHelper {
         val excluded = (syncNodes["excluded"] as? List<*>?)?.map { it.toString() }?.toSet()
             ?: DEFAULT_EXCLUDE
         val watch = syncNodes["watch"] as? Boolean? ?: false
+        val outExtension = syncNodes["out_extension"] as? Boolean? ?: false
         return AssetsSyncConfig(
-            sync_path = syncPath,
-            out_path = outPath,
-            out_class = outClass,
+            syncPath = syncPath,
+            outPath = outPath,
+            outClass = outClass,
             watcher = watch,
+            outExtension = outExtension,
             excluded = excluded
         )
     }
@@ -52,14 +54,15 @@ object AssetsClassGenHelper {
     ) = withContext(Dispatchers.IO) {
         val pathList = getFilePathList(
             projectPath,
-            syncConfig.sync_path.toSet(),
+            syncConfig.syncPath.toSet(),
             syncConfig.excluded,
         )
         writeClass(
             projectPath,
-            syncConfig.out_path,
-            syncConfig.out_class,
-            pathList
+            syncConfig.outPath,
+            syncConfig.outClass,
+            pathList,
+            syncConfig.outExtension,
         )
     }
 
@@ -69,7 +72,8 @@ object AssetsClassGenHelper {
         projectPath: String,
         classPath: String,
         className: String,
-        nodeList: List<AssetsNode>
+        nodeList: List<AssetsNode>,
+        outExtension: Boolean,
     ) {
         val project = File(projectPath)
         val classFile = File(project, toSystemPath(classPath))
@@ -88,7 +92,7 @@ object AssetsClassGenHelper {
                     if (node.name.contains(" ")) {
                         fileWriter.appendLine("// TODO The file name '${node.path}' contains empty characters,please check it again");
                     }
-                    val fieldName = pathConvertFieldName(projectName, node)
+                    val fieldName = pathConvertFieldName(projectName, node, outExtension)
                     fileWriter.appendLine("  static const String $fieldName = \"${node.path}\";")
                 } catch (e: Exception) {
                     fileWriter.appendLine("// TODO ${node.path} generate error,please check it again")
@@ -103,22 +107,31 @@ object AssetsClassGenHelper {
         LocalFileSystem.getInstance().refreshAndFindFileByIoFile(classFile)
     }
 
-    private fun pathConvertFieldName(projectName: String, node: AssetsNode): String {
+    private fun pathConvertFieldName(
+        projectName: String,
+        node: AssetsNode,
+        outExtension: Boolean
+    ): String {
         val nodePath = node.parentPath
+        val fileName = node.name
+        val nameIsEmpty = fileName.isEmpty()
         val pathName =
-            "${nodePath.ifEmpty { projectName }}/${node.name}"
+            "${nodePath.ifEmpty { projectName }}/$fileName"
                 .replace(Regex("\\W"), "_")
                 .removePrefix("_")
                 .removeSuffix("_")
                 .split("_")
                 .toMutableList()
         var fieldName = pathName.mapIndexed { i, it ->
-            (if (i != 0) {
+            if (i != 0) {
                 it.replaceFirstChar { it.uppercase() }
-            } else it).ifEmpty { "_" }
+            } else it
         }.joinToString("")
-        if (node.extension.isNotEmpty()) {
-            fieldName += "_${node.extension}"
+        if (nameIsEmpty) {
+            fieldName += "_"
+        }
+        if (nameIsEmpty || outExtension) {
+            fieldName += node.extension.replaceFirstChar { it.uppercase() }
         }
         return fieldName
     }

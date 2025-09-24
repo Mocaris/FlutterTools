@@ -125,9 +125,9 @@ class AssetsFileWatcherService(private val project: Project) : BulkFileListener 
                 val newConfig = AssetsClassGenHelper.parseYaml(toolsYamlFile, pubYamlFile).also {
                     config = it
                     watchDirPath.clear()
-                    watchDirPath.addAll(it.sync_path.map { t -> File(projectBasePath, t).path })
+                    watchDirPath.addAll(it.syncPath.map { t -> File(projectBasePath, t).path })
                 }
-                val outClassFile = File(projectBasePath, newConfig.out_path)
+                val outClassFile = File(projectBasePath, newConfig.outPath)
                 if (isInit && outClassFile.exists()) {
                     return@launch
                 }
@@ -137,7 +137,7 @@ class AssetsFileWatcherService(private val project: Project) : BulkFileListener 
                 if (newConfig == oldConfig && outClassFile.exists()) {
                     return@launch
                 }
-                val syPaths = config?.sync_path ?: emptyList()
+                val syPaths = config?.syncPath ?: emptyList()
                 if (syPaths.isEmpty()) {
                     return@launch
                 }
