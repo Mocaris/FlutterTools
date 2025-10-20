@@ -60,7 +60,7 @@ class AssetsFileWatcherService(private val project: Project) : BulkFileListener 
     }
 
     private fun handleFileSave(event: VFileEvent) {
-        val isConfigPath = event.file?.path?.let {
+        val isConfigPath = event.file?.path?.let { File(it).path }?.let {
             it == toolsYamlFile.path || it == pubYamlFile.path
         }
         if (isConfigPath != true) {
@@ -74,7 +74,7 @@ class AssetsFileWatcherService(private val project: Project) : BulkFileListener 
             return
         }
         event.file?.path?.let {
-            changeFileList.add(it)
+            changeFileList.add(File(it).path)
         }
         handleWatch()
     }
@@ -125,9 +125,9 @@ class AssetsFileWatcherService(private val project: Project) : BulkFileListener 
                 val newConfig = AssetsClassGenHelper.parseYaml(toolsYamlFile, pubYamlFile).also {
                     config = it
                     watchDirPath.clear()
-                    watchDirPath.addAll(it.sync_path.map { t -> File(projectBasePath, t).path })
+                    watchDirPath.addAll(it.syncPath.map { t -> File(projectBasePath, t).path })
                 }
-                val outClassFile = File(projectBasePath, newConfig.out_path)
+                val outClassFile = File(projectBasePath, newConfig.outPath)
                 if (isInit && outClassFile.exists()) {
                     return@launch
                 }
@@ -137,7 +137,7 @@ class AssetsFileWatcherService(private val project: Project) : BulkFileListener 
                 if (newConfig == oldConfig && outClassFile.exists()) {
                     return@launch
                 }
-                val syPaths = config?.sync_path ?: emptyList()
+                val syPaths = config?.syncPath ?: emptyList()
                 if (syPaths.isEmpty()) {
                     return@launch
                 }
