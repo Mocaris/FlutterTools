@@ -6,6 +6,7 @@
     <!-- Public plugin name should be written in Title Case.
          Guidelines: https://plugins.jetbrains.com/docs/marketplace/best-practices-for-listing.html#plugin-name -->
     <name>FlutterTools</name>
+    <resource-bundle>messages.FlutterToolsBundle</resource-bundle>
 
     <!-- A displayed Vendor name or Organization ID displayed on the Plugins Page. -->
     <vendor email="imocaris@outlook.com" url="https://github.com/Mocaris/FlutterTools">Mocaris
@@ -13,21 +14,32 @@
     <!-- Product and plugin compatibility requirements.
          Read more: https://plugins.jetbrains.com/docs/intellij/plugin-compatibility.html -->
     <depends>com.intellij.modules.platform</depends>
+    <depends>org.jetbrains.plugins.yaml</depends>
 
     <!-- Extension points defined by the plugin.
          Read more: https://plugins.jetbrains.com/docs/intellij/plugin-extension-points.html -->
     <extensions defaultExtensionNs="com.intellij">
         <postStartupActivity implementation="com.mocaris.plugin.flutter.tools.FlutterToolsActivity"/>
-        <notificationGroup displayType="STICKY_BALLOON" id="notifi_sticky_balloon"/>
-        <notificationGroup displayType="BALLOON" id="notifi_balloon"/>
+        <notificationGroup displayType="BALLOON" id="FlutterTools"/>
+        <toolWindow id="FlutterTools" anchor="right" icon="/icons/flutterTools.svg"
+                    factoryClass="com.mocaris.plugin.flutter.tools.toolwindow.FlutterToolsToolWindowFactory"/>
+        <psi.referenceContributor language="yaml"
+                                  implementation="com.mocaris.plugin.flutter.tools.dependencies.PubspecReferences"/>
+        <annotator language="yaml"
+                   implementationClass="com.mocaris.plugin.flutter.tools.dependencies.PubspecAnnotator"/>
+        <codeInsight.inlayProvider language="yaml"
+                                   implementationClass="com.mocaris.plugin.flutter.tools.dependencies.PubspecInlayHints"/>
     </extensions>
     <actions>
         <!-- Add your actions here -->
         <group compact="true" id="FlutterTools.Mocaris" popup="true" text="FlutterTools">
             <add-to-group anchor="first" group-id="ToolsMenu"/>
-            <action class="com.mocaris.plugin.flutter.tools.sync.AssetsAction"
-                    description="A tool for synchronizing files" id="AssetsSync" popup="true"
-                    text="AssetsSync"/>
+            <action class="com.mocaris.plugin.flutter.tools.toolwindow.OpenToolWindowAction"
+                    id="FlutterTools.OpenToolWindow"/>
+            <action class="com.mocaris.plugin.flutter.tools.assets.AssetsAction"
+                    id="AssetsSync" popup="true"/>
+            <action class="com.mocaris.plugin.flutter.tools.dependencies.CheckPackagesAction"
+                    id="FlutterTools.CheckPackages"/>
         </group>
     </actions>
 </idea-plugin>
