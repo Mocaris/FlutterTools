@@ -50,4 +50,37 @@ class DependencyRefreshTest {
         assertEquals(setOf("dio"), DependencyRefreshPlan.changedPackages(listOf(http, dio, local), listOf(http.signature())))
         assertEquals(setOf("http", "dio"), DependencyRefreshPlan.changedPackages(listOf(http, dio, local), null))
     }
+
+    @Test fun openingPubspecFillsOnlyMissingLatestEvenWhenAutomaticChecksAreDisabled() {
+        val dio = http.copy(name = "dio", packageName = "dio")
+        assertEquals(setOf("dio"), DependencyRefreshPlan.requests(listOf(http, dio), setOf("http", "dio"), setOf("dio"),
+            force = false, automatic = false, checkCache = true, opened = true))
+        assertTrue(DependencyRefreshPlan.requests(listOf(http, dio), emptySet(), emptySet(),
+            force = false, automatic = false, checkCache = true, opened = true).isEmpty())
+    }
+
+    @Test fun disabledAutomaticChecksDoNotFetchChangesWithoutAnOpenRequest() {
+        assertTrue(DependencyRefreshPlan.requests(listOf(http), setOf("http"), setOf("http"),
+            force = false, automatic = false, checkCache = true, opened = false).isEmpty())
+    }
+
+    @Test fun automaticChecksAndManualRefreshAreLimitedToDeclaredPublicDependencies() {
+        val local = http.copy(name = "local", packageName = "local", source = "path")
+        for (force in listOf(false, true)) {
+            assertEquals(setOf("http"), DependencyRefreshPlan.requests(listOf(http, local), emptySet(),
+                setOf("unrelated_cached_package", "local"), force = force, automatic = true, checkCache = true, opened = false))
+        }
+    }
+
+    @Test fun automaticVersionEditsRefreshOnlyChangedPackages() {
+        val dio = http.copy(name = "dio", packageName = "dio")
+        assertEquals(setOf("http"), DependencyRefreshPlan.requests(listOf(http, dio), setOf("http"), emptySet(),
+            force = false, automatic = true, checkCache = false, opened = false))
+    }
+
+    @Test fun openingPubspecDoesNotFetchLocalDependenciesOrUnrelatedCacheEntries() {
+        val local = http.copy(name = "local", packageName = "local", source = "git")
+        assertEquals(setOf("http"), DependencyRefreshPlan.requests(listOf(http, local), emptySet(),
+            setOf("http", "local", "other_module_only"), force = false, automatic = false, checkCache = false, opened = true))
+    }
 }

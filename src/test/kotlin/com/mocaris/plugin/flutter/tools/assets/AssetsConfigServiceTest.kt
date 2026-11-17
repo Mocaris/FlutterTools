@@ -31,13 +31,14 @@ class AssetsConfigServiceTest : YamlPsiTest() {
                 excluded:
                   - '*.tmp'
                 out_path: lib/resources.dart
+                generate_dir: lib/custom
                 out_class: Resources
                 out_extension: true
                 watch: true
         """.trimIndent())
         val snapshot = AssetsConfigService(environment.project).read(root)
         assertEquals("${root.path}/$TOOLS_FILE_NAME", snapshot.path)
-        assertEquals(AssetsSyncConfig("lib/resources.dart", "Resources", true, true, setOf("*.tmp")), snapshot.effectiveConfig)
+        assertEquals(AssetsSyncConfig("lib/resources.dart", "Resources", true, true, setOf("*.tmp"), "lib/custom"), snapshot.effectiveConfig)
     }
 
     @Test fun packagesLoadTheirOwnSettingsAndRefreshAfterConfigurationReplacement() {

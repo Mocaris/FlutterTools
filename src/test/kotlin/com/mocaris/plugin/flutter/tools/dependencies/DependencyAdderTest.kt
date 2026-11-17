@@ -62,10 +62,21 @@ class DependencyAdderTest : YamlPsiTest() {
         assertThrows(IllegalArgumentException::class.java) {
             add("name: app\ndependencies:\n  network: {hosted: {name: dio, url: https://pub.dev}, version: any}")
         }
-        val override = PackageDependency("dio", section = "dependency_overrides", constraint = "^4.0.0", source = "pub.dev")
+        val override = yaml("dependency_overrides: {dio: ^4.0.0}")
         assertThrows(IllegalArgumentException::class.java) {
-            DependencyAdder.updatedText(yaml("name: app"), "dio", "5.0.0", "dependencies", listOf(override))
+            DependencyAdder.updatedText(yaml("name: app"), "dio", "5.0.0", "dependencies", override)
         }
+    }
+
+    @Test fun updateAfterExternalOverrideReplacementEditsTheOriginalDependency() {
+        val file = yaml("name: app\ndependencies: {dio: '^4.0.0'}\ndependency_overrides: {dio: {path: ../dio}}")
+        val external = yaml("dependency_overrides: {}")
+        val current = DependencyAdder.existing(file, "dio", external)!!
+        assertFalse(current.overridden)
+        val updated = DependencyAdder.updatedText(file, "dio", "5.0.0", "dependencies", external)
+        assertTrue(updated.contains("dio: '^5.0.0'"))
+        assertTrue(updated.contains("dio: {path: ../dio}"))
+        assertEquals("^5.0.0", PubspecDependencyParser.parse(yaml(updated), external).single().constraint)
     }
 
     @Test fun invalidYamlAndNamesFailBeforeProducingAnEdit() {

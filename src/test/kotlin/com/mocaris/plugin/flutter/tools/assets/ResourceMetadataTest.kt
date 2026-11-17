@@ -22,8 +22,8 @@ class ResourceMetadataTest {
     @Test fun metadataUsesPubspecPackageInsteadOfDirectoryName() {
         file("assets/logo.png"); file("shaders/effect.frag")
         val contents = generate("flutter:\n  assets: [assets/]\n  shaders: [shaders/effect.frag]\n")
-        assertTrue(contents.getValue(root.resolve("lib/gen/assets.g.dart")).contains("RResourceMeta(\"sample\", \"assets/logo.png\", RResourceKind.assets)"))
-        assertTrue(contents.getValue(root.resolve("lib/gen/shaders.g.dart")).contains("RResourceMeta(\"sample\", \"shaders/effect.frag\", RResourceKind.shaders)"))
+        assertTrue(contents.getValue(root.resolve("lib/generate/assets.g.dart")).contains("RResourceMeta(\"sample\", \"assets/logo.png\", RResourceKind.assets)"))
+        assertTrue(contents.getValue(root.resolve("lib/generate/shaders.g.dart")).contains("RResourceMeta(\"sample\", \"shaders/effect.frag\", RResourceKind.shaders)"))
         assertFalse(contents.getValue(root.resolve("lib/r.dart")).contains("package:flutter"))
     }
 
@@ -35,7 +35,7 @@ class ResourceMetadataTest {
         val resource = parse("flutter:\n  assets: [packages/icons/images/]\n").single()
         assertEquals("sample", resource.packageName)
         assertEquals("icons", resource.sourcePackage)
-        val output = generate("flutter:\n  assets: [packages/icons/images/]\n").getValue(root.resolve("lib/gen/assets.g.dart"))
+        val output = generate("flutter:\n  assets: [packages/icons/images/]\n").getValue(root.resolve("lib/generate/assets.g.dart"))
         assertTrue(output.contains("RResourceMeta(\"sample\", \"packages/icons/images/logo.png\", RResourceKind.assets, sourcePackage: \"icons\")"))
     }
 
@@ -45,7 +45,7 @@ class ResourceMetadataTest {
         val before = generate(yaml)
         val after = AssetsGenerator.generate(root.toString(), AssetsSyncConfig(), "name: renamed_package\n$yaml")
         assertNotEquals(before, after)
-        assertTrue(after.getValue(root.resolve("lib/gen/assets.g.dart")).contains("RResourceMeta(\"renamed_package\","))
+        assertTrue(after.getValue(root.resolve("lib/generate/assets.g.dart")).contains("RResourceMeta(\"renamed_package\","))
     }
 
     @Test fun invalidPackageNamesDoNotGenerateUnknownMetadata() {
@@ -87,7 +87,7 @@ class ResourceMetadataTest {
         val entry = generated.getValue(root.resolve("lib/r.dart"))
         assertTrue(entry.contains("const RFontFace(super.meta, {"))
         assertFalse(entry.contains(": super(meta)"))
-        val output = generated.getValue(root.resolve("lib/gen/fonts.g.dart"))
+        val output = generated.getValue(root.resolve("lib/generate/fonts.g.dart"))
         assertEquals(4, Regex("RFontFace\\(RResourceMeta").findAll(output).count())
         assertTrue(output.contains("get w400 =>")); assertTrue(output.contains("get w700 =>"))
         assertTrue(output.contains("get w400Italic =>"))
@@ -104,7 +104,7 @@ class ResourceMetadataTest {
                 - family: Demo
                   fonts: [{asset: fonts/cjk.ttf}]
         """.trimIndent()
-        val output = generate(yaml).getValue(root.resolve("lib/gen/fonts.g.dart"))
+        val output = generate(yaml).getValue(root.resolve("lib/generate/fonts.g.dart"))
         assertEquals(1, Regex("class _RFontsDemo ").findAll(output).count())
         assertEquals(2, Regex("RFontFace\\(RResourceMeta").findAll(output).count())
         assertTrue(output.contains("get w400FontsCjk => faces[0]"))
@@ -122,10 +122,10 @@ class ResourceMetadataTest {
         file("fonts/a.ttf"); file("fonts/b.ttf")
         val yaml = fonts("[{asset: fonts/a.ttf}, {asset: fonts/b.ttf, weight: 700}]")
         val partial = generate(yaml, AssetsSyncConfig(excluded = setOf("fonts/b.ttf")))
-        val fontOutput = partial.getValue(root.resolve("lib/gen/fonts.g.dart"))
+        val fontOutput = partial.getValue(root.resolve("lib/generate/fonts.g.dart"))
         assertTrue(fontOutput.contains("get w400 =>")); assertFalse(fontOutput.contains("fonts/b.ttf"))
         val empty = generate(yaml, AssetsSyncConfig(excluded = setOf("fonts/")))
-        assertFalse(empty.getValue(root.resolve("lib/gen/fonts.g.dart")).contains("class _RFontsDemo"))
+        assertFalse(empty.getValue(root.resolve("lib/generate/fonts.g.dart")).contains("class _RFontsDemo"))
         assertFalse(empty.getValue(root.resolve("lib/r.dart")).contains("package:flutter"))
     }
 
@@ -157,13 +157,13 @@ class ResourceMetadataTest {
     @Test fun duplicateFontFieldNamesCanIncludeExtensions() {
         file("fonts/a.ttf"); file("fonts/a.otf")
         val yaml = fonts("[{asset: fonts/a.ttf}, {asset: fonts/a.otf}]")
-        val output = generate(yaml).getValue(root.resolve("lib/gen/fonts.g.dart"))
+        val output = generate(yaml).getValue(root.resolve("lib/generate/fonts.g.dart"))
         assertTrue(output.contains("get w400FontsAOtf =>")); assertTrue(output.contains("get w400FontsATtf =>"))
     }
     @Test fun shaderExtensionConflictsAreResolvedAutomatically() {
         file("shaders/effect.frag"); file("shaders/effect.glsl")
         val output = generate("flutter:\n  shaders: [shaders/effect.frag, shaders/effect.glsl]\n")
-            .getValue(root.resolve("lib/gen/shaders.g.dart"))
+            .getValue(root.resolve("lib/generate/shaders.g.dart"))
         assertTrue(output.contains("RResource shadersEffectFrag ="))
         assertTrue(output.contains("RResource shadersEffectGlsl ="))
     }

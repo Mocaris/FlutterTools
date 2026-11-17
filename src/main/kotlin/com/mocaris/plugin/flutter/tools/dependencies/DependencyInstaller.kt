@@ -19,7 +19,7 @@ object DependencyInstaller {
     private fun yaml(project: Project, file: VirtualFile) = PsiFileFactory.getInstance(project)
         .createFileFromText(file.name, YAMLFileType.YML, text(file)) as YAMLFile
     private fun overrides(project: Project, root: VirtualFile) = root.findChild("pubspec_overrides.yaml")
-        ?.let { PubspecDependencyParser.parse(yaml(project, it)) }.orEmpty()
+        ?.let { yaml(project, it) }
 
     fun context(project: Project, root: VirtualFile, name: String): Context = ReadAction.compute<Context, RuntimeException> {
         val file = requireNotNull(root.findChild("pubspec.yaml"))

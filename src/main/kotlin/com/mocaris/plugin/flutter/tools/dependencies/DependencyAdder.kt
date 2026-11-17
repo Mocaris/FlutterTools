@@ -7,13 +7,12 @@ import org.jetbrains.yaml.psi.YAMLMapping
 
 /** Insert one dependency without reserializing the rest of the user's pubspec. */
 object DependencyAdder {
-    fun existing(file: YAMLFile, name: String, overrides: List<PackageDependency> = emptyList()): PackageDependency? =
-        PubspecDependencyParser.applyOverrides(PubspecDependencyParser.parse(file), overrides)
+    fun existing(file: YAMLFile, name: String, overrides: YAMLFile? = null): PackageDependency? =
+        PubspecDependencyParser.parse(file, overrides)
             .firstOrNull { it.name == name || it.packageName == name }
-            ?: overrides.firstOrNull { it.name == name || it.packageName == name }?.copy(overridden = true)
 
     fun updatedText(file: YAMLFile, name: String, version: String, section: String,
-                    overrides: List<PackageDependency> = emptyList()): String {
+                    overrides: YAMLFile? = null): String {
         PubDevClient.validateName(name)
         requireLocalized(PubVersion.parse(version) != null, "error.updateVersion")
         require(section in setOf("dependencies", "dev_dependencies"))

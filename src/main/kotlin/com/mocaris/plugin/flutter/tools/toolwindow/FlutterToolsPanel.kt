@@ -18,17 +18,21 @@ import com.mocaris.plugin.flutter.tools.core.FlutterToolsBundle.message
 import com.mocaris.plugin.flutter.tools.core.FlutterToolsLanguageSettings
 import com.mocaris.plugin.flutter.tools.core.PluginLanguage
 import com.mocaris.plugin.flutter.tools.core.LanguageListener
+import com.mocaris.plugin.flutter.tools.core.FlutterToolsLanguageSelector
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.util.ui.JBUI
 import java.awt.BorderLayout
+import java.awt.Dimension
 import javax.swing.*
 
 /** Coordinates package selection only; each feature owns its own page. */
 class FlutterToolsPanel(private val project: Project) : JPanel(BorderLayout()), Disposable {
     private val resourceGeneration = project.service<AssetsSyncService>()
     private val settings = project.service<FlutterToolsSettings>()
-    private val languages = ComboBox(PluginLanguage.values())
+    private val languages = FlutterToolsLanguageSelector(this)
     private val languageSettings = ApplicationManager.getApplication().getService(FlutterToolsLanguageSettings::class.java)
     private val tabs = JBTabbedPane()
+    private val preferences = ProjectPreferencesPanel(project)
     private val packages = ComboBox<VirtualFile>()
     private val assets = AssetsConfigurationPanel(project)
     private val dependencies = DependenciesPanel(project)
@@ -45,33 +49,32 @@ class FlutterToolsPanel(private val project: Project) : JPanel(BorderLayout()), 
                 return label
             }
         }
-        languages.renderer = object : DefaultListCellRenderer() {
-            override fun getListCellRendererComponent(list: JList<*>?, value: Any?, index: Int, selected: Boolean, focused: Boolean): java.awt.Component {
-                val label = super.getListCellRendererComponent(list, value, index, selected, focused) as JLabel
-                label.text = message("language.${(value as? PluginLanguage ?: PluginLanguage.SYSTEM).name.lowercase(java.util.Locale.ROOT)}")
-                return label
-            }
-        }
+        packages.preferredSize = Dimension(JBUI.scale(220), packages.preferredSize.height)
+        packages.minimumSize = Dimension(JBUI.scale(80), packages.preferredSize.height)
+        packages.maximumSize = Dimension(JBUI.scale(240), packages.preferredSize.height)
         languages.selectedItem = languageSettings.state.language
         languages.addActionListener { languageSettings.setLanguage(languages.selectedItem as PluginLanguage) }
-        add(JPanel(BorderLayout(12, 0)).apply {
-            add(JPanel(BorderLayout(6, 0)).apply {
-                add(JBLabel().localized("package.label"), BorderLayout.WEST)
-                add(packages, BorderLayout.CENTER)
-            }, BorderLayout.CENTER)
-            add(JPanel(BorderLayout(6, 0)).apply {
-                add(JBLabel().localized("language.label"), BorderLayout.WEST)
-                add(languages, BorderLayout.CENTER)
-            }, BorderLayout.EAST)
+        add(JPanel().apply {
+            layout = BoxLayout(this, BoxLayout.X_AXIS)
+            add(JBLabel().localized("package.label"))
+            add(Box.createHorizontalStrut(JBUI.scale(6)))
+            add(packages)
+            add(Box.createHorizontalStrut(JBUI.scale(12)))
+            add(JBLabel().localized("language.label"))
+            add(Box.createHorizontalStrut(JBUI.scale(6)))
+            add(languages)
+            add(Box.createHorizontalGlue())
         }, BorderLayout.NORTH)
         tabs.addTab(message("tab.assets"), assets); tabs.addTab(message("tab.packages"), dependencies)
         tabs.addTab(message("tab.search"), search)
+        tabs.addTab(message("tab.settings"), preferences)
         add(tabs, BorderLayout.CENTER)
         ApplicationManager.getApplication().messageBus.connect(this).subscribe(LanguageListener.TOPIC, LanguageListener {
             languages.selectedItem = languageSettings.state.language
             FlutterToolsBundle.update(this)
             tabs.setTitleAt(0, message("tab.assets")); tabs.setTitleAt(1, message("tab.packages"))
-            tabs.setTitleAt(2, message("tab.search"))
+            tabs.setTitleAt(2, message("tab.search")); tabs.setTitleAt(3, message("tab.settings"))
+            preferences.updateLanguage()
             assets.updateLanguage(); dependencies.updateLanguage()
             search.updateLanguage()
             languages.repaint(); packages.repaint()
@@ -86,6 +89,7 @@ class FlutterToolsPanel(private val project: Project) : JPanel(BorderLayout()), 
             loading = true; packages.selectedItem = root; loading = false; return
         }
         root = next
+        packages.toolTipText = next?.path
         settings.state.selectedPackagePath = next?.path.orEmpty()
         assets.selectPackage(next); dependencies.selectPackage(next)
         search.selectPackage(next)
@@ -103,5 +107,5 @@ class FlutterToolsPanel(private val project: Project) : JPanel(BorderLayout()), 
         assets.refresh(); dependencies.refresh()
         search.refresh()
     }
-    override fun dispose() { timer.stop(); search.dispose() }
+    override fun dispose() { timer.stop(); search.dispose(); com.intellij.openapi.util.Disposer.dispose(preferences) }
 }

@@ -96,6 +96,19 @@ class AssetsGeneratorTest {
         pubspec("missing/")
         assertThrows(IllegalArgumentException::class.java) { generateText(folder.root.path, config()) }
     }
+    @Test fun coreTypesAndImportPrefixCannotBeUsedAsTheOutputClass() {
+        asset("assets/logo.png")
+        val output = asset("lib/r.dart").apply { writeText("existing content") }
+        for (name in listOf("String", "List", "Object", "_flutter")) {
+            val error = assertThrows(IllegalArgumentException::class.java) {
+                generateText(folder.root.path, config().copy(outClass = name))
+            }
+            assertEquals("error.className", (error as com.mocaris.plugin.flutter.tools.core.LocalizedException).text.key)
+            assertEquals("existing content", output.readText())
+        }
+        assertTrue(generateText(folder.root.path, config().copy(outClass = "StringsR")).contains("abstract class StringsR"))
+    }
+
     @Test fun corruptIndependentConfigDoesNotFallBack() {
         val independent = asset("flutter_tools.yaml").apply { writeText("flutter_tools: [broken") }
         val pubspec = asset("pubspec.yaml").apply { writeText("flutter_tools:\n  assets_sync:\n    sync_path: [assets]\n") }

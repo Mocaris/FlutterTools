@@ -21,6 +21,7 @@ object AssetsConfigEditor {
         val values = linkedMapOf(
             "excluded" to (list(config.excluded) to (previous?.excluded == config.excluded)),
             "out_path" to (quoted(config.outPath) to (previous?.outPath == config.outPath)),
+            "generate_dir" to (quoted(config.generateDir) to (previous?.generateDir == config.generateDir)),
             "out_class" to (quoted(config.outClass) to (previous?.outClass == config.outClass)),
             "out_extension" to (config.outExtension.toString() to (previous?.outExtension == config.outExtension)),
             "watch" to (config.watcher.toString() to (previous?.watcher == config.watcher)))

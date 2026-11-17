@@ -19,13 +19,35 @@ import org.jetbrains.yaml.psi.YAMLFile
 import java.awt.event.MouseEvent
 
 object DependencyUpdatePopup {
+    internal data class Choice(val version: String?, val pubGet: Boolean = false, val recommended: Boolean = false, val document: String? = null) {
+        override fun toString() = if (document != null) message("docs.viewVersion", message("docs.$document"), version ?: "—")
+        else message(if (recommended) "sdk.updateRecommended" else "packages.updateTo", version ?: "—") +
+            if (pubGet) " · " + message("packages.updateAndGet") else ""
+    }
+
+    internal fun choices(result: DependencyResult): List<Choice> = buildList {
+        result.recommendation.version?.takeIf { it != result.latest }?.let { version ->
+            if (DependencyVersionEditor.updateAvailable(result.copy(latest = version))) {
+                add(Choice(version, false, true)); add(Choice(version, true, true))
+            }
+        }
+        if (DependencyVersionEditor.updateAvailable(result)) result.latest?.let { version ->
+            add(Choice(version, false, false)); add(Choice(version, true, false))
+        }
+        if (result.dependency.isPubDev) {
+            val target = result.recommendation.version ?: result.latest ?: result.installed
+            add(Choice(target, document = "readme")); add(Choice(target, document = "changelog"))
+        }
+    }
+
     fun show(project: Project, root: VirtualFile, result: DependencyResult, event: MouseEvent) {
-        if (!DependencyVersionEditor.updateAvailable(result)) return
-        val latest = result.latest ?: return
-        val choices = listOf(message("packages.updateTo", latest), message("packages.updateAndGet"))
-        JBPopupFactory.getInstance().createListPopup(object : BaseListPopupStep<String>(message("packages.updateTitle", result.dependency.name), choices) {
-            override fun onChosen(selectedValue: String, finalChoice: Boolean): PopupStep<*>? = doFinalStep {
-                update(project, root, result, selectedValue == choices[1])
+        val choices = choices(result)
+        if (choices.isEmpty()) return
+        JBPopupFactory.getInstance().createListPopup(object : BaseListPopupStep<Choice>(message("packages.updateTitle", result.dependency.name), choices) {
+            override fun getTextFor(value: Choice) = value.toString()
+            override fun onChosen(selectedValue: Choice, finalChoice: Boolean): PopupStep<*>? = doFinalStep {
+                if (selectedValue.document != null) PackageDocumentationDialog(project, result.dependency.packageName, selectedValue.version, selectedValue.document).show()
+                else update(project, root, result.copy(latest = selectedValue.version), selectedValue.pubGet)
             }
         }).show(RelativePoint(event))
     }

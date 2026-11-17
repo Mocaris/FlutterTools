@@ -12,7 +12,7 @@ class AssetsDirectoryTreeTest {
     private fun file(path: String) = root.resolve(path).also { Files.createDirectories(it.parent); Files.writeString(it, "resource") }
     private fun generate(paths: List<String>, config: AssetsSyncConfig = AssetsSyncConfig()): String {
         val pubspec = "name: sample\nflutter:\n  assets:\n" + paths.joinToString("\n") { "    - $it" }
-        return AssetsGenerator.generate(root.toString(), config, pubspec).getValue(root.resolve("lib/gen/assets.g.dart"))
+        return AssetsGenerator.generate(root.toString(), config, pubspec).getValue(root.resolve("lib/generate/assets.g.dart"))
     }
 
     @Test fun assetsFollowDeclaredDirectoryHierarchyAndLeafFilenames() {

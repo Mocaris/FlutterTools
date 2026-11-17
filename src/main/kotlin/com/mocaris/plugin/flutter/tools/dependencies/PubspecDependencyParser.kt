@@ -9,32 +9,32 @@ import com.mocaris.plugin.flutter.tools.core.YamlSupport
 import java.net.URI
 
 object PubspecDependencyParser {
-    fun applyOverrides(dependencies: List<PackageDependency>, overrides: List<PackageDependency>): List<PackageDependency> {
-        val effective = overrides.associateBy { it.name }
-        return dependencies.map { original -> effective[original.name]?.copy(section = original.section, overridden = true,
-            keyOffset = original.keyOffset, versionOffset = original.versionOffset) ?: original }
-    }
-
-    /** Classify the effective source after overrides, so local replacements never reach pub.dev. */
-    fun forVersionChecks(dependencies: List<PackageDependency>, overrides: List<PackageDependency> = emptyList()): List<PackageDependency> =
-        applyOverrides(dependencies, overrides).filter { it.isPubDev }
+    fun forVersionChecks(dependencies: List<PackageDependency>): List<PackageDependency> =
+        dependencies.filter { it.isPubDev }
 
     fun parseEditor(file: YAMLFile): List<PackageDependency> {
-        val dependencies = parse(file)
-        val overrideFile = file.virtualFile?.parent?.findChild("pubspec_overrides.yaml") ?: return dependencies
+        val overrideFile = file.virtualFile?.parent?.findChild("pubspec_overrides.yaml") ?: return parse(file)
         val text = com.intellij.openapi.fileEditor.FileDocumentManager.getInstance().getDocument(overrideFile)?.text
             ?: String(overrideFile.contentsToByteArray(), overrideFile.charset)
         val overrides = com.intellij.psi.PsiFileFactory.getInstance(file.project)
             .createFileFromText("pubspec_overrides.yaml", org.jetbrains.yaml.YAMLFileType.YML, text) as YAMLFile
-        return applyOverrides(dependencies, parse(overrides))
+        return parse(file, overrides)
     }
 
-    fun parse(file: YAMLFile): List<PackageDependency> {
-        requireLocalized(PsiTreeUtil.findChildOfType(file, PsiErrorElement::class.java) == null, "error.yamlWaiting")
-        // Validate duplicate keys and malformed mappings as well as editor syntax errors.
-        YamlSupport.load(file.text)
-        val top = file.documents.singleOrNull()?.topLevelValue as? YAMLMapping ?: errorLocalized("error.pubspecSingle")
-        val overrides = top.getKeyValueByKey("dependency_overrides")?.value as? YAMLMapping
+    /** An external dependency_overrides property replaces the entire inline mapping, even when empty. */
+    fun parse(file: YAMLFile, external: YAMLFile? = null): List<PackageDependency> {
+        fun mapping(source: YAMLFile, allowEmpty: Boolean = false): YAMLMapping? {
+            requireLocalized(PsiTreeUtil.findChildOfType(source, PsiErrorElement::class.java) == null, "error.yamlWaiting")
+            val value = YamlSupport.load(source.text)
+            if (allowEmpty && value == null) return null
+            return source.documents.singleOrNull()?.topLevelValue as? YAMLMapping ?: errorLocalized("error.pubspecSingle")
+        }
+        val top = mapping(file)!!
+        val externalTop = external?.let { mapping(it, allowEmpty = true) }
+        val overridesKey = externalTop?.getKeyValueByKey("dependency_overrides") ?: top.getKeyValueByKey("dependency_overrides")
+        val overrides = overridesKey?.value as? YAMLMapping
+        requireLocalized(overridesKey == null || overrides != null ||
+            YamlSupport.load(overridesKey.value?.text.orEmpty()) == null, "error.sectionMapping", "dependency_overrides")
         val result = mutableListOf<PackageDependency>()
         for (section in listOf("dependencies", "dev_dependencies")) {
             val sectionNode = top.getKeyValueByKey(section) ?: continue

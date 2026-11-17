@@ -1,5 +1,6 @@
 package com.mocaris.plugin.flutter.tools.core
 
+import com.intellij.DynamicBundle
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.*
 import com.intellij.util.messages.Topic
@@ -7,8 +8,8 @@ import java.util.Locale
 
 enum class PluginLanguage {
     SYSTEM, CHINESE, ENGLISH;
-    fun locale(system: Locale = Locale.getDefault()): Locale = when (this) {
-        SYSTEM -> if (system.language == "zh") Locale.SIMPLIFIED_CHINESE else Locale.ENGLISH
+    fun locale(ide: Locale = DynamicBundle.getLocale()): Locale = when (this) {
+        SYSTEM -> if (ide.language == "zh") Locale.SIMPLIFIED_CHINESE else Locale.ENGLISH
         CHINESE -> Locale.SIMPLIFIED_CHINESE
         ENGLISH -> Locale.ENGLISH
     }

@@ -9,28 +9,49 @@
     <resource-bundle>messages.FlutterToolsBundle</resource-bundle>
 
     <!-- A displayed Vendor name or Organization ID displayed on the Plugins Page. -->
-    <vendor email="imocaris@outlook.com" url="https://github.com/Mocaris/FlutterTools">Mocaris
+    <vendor email="imocaris@outlook.com" url="https://github.com/Mocaris/FlutterTools">Zovey(Mocaris)
     </vendor>
     <!-- Product and plugin compatibility requirements.
          Read more: https://plugins.jetbrains.com/docs/intellij/plugin-compatibility.html -->
     <depends>com.intellij.modules.platform</depends>
     <depends>org.jetbrains.plugins.yaml</depends>
+    <depends optional="true" config-file="fluttertools-dart.xml">Dart</depends>
 
     <!-- Extension points defined by the plugin.
          Read more: https://plugins.jetbrains.com/docs/intellij/plugin-extension-points.html -->
     <extensions defaultExtensionNs="com.intellij">
+        <applicationConfigurable parentId="other" id="fluttertools.settings" displayName="FlutterTools"
+                             instance="com.mocaris.plugin.flutter.tools.core.FlutterToolsConfigurable"/>
         <postStartupActivity implementation="com.mocaris.plugin.flutter.tools.FlutterToolsActivity"/>
         <notificationGroup displayType="BALLOON" id="FlutterTools"/>
         <toolWindow id="FlutterTools" anchor="right" icon="/icons/flutterTools.svg"
                     factoryClass="com.mocaris.plugin.flutter.tools.toolwindow.FlutterToolsToolWindowFactory"/>
         <psi.referenceContributor language="yaml"
                                   implementation="com.mocaris.plugin.flutter.tools.dependencies.PubspecReferences"/>
+        <completion.contributor language="yaml" order="first"
+                                implementationClass="com.mocaris.plugin.flutter.tools.dependencies.completion.PubspecPackageCompletion"/>
+        <completion.confidence language="yaml" order="first"
+                               implementationClass="com.mocaris.plugin.flutter.tools.dependencies.completion.PubspecPackageCompletionConfidence"/>
+        <typedHandler implementation="com.mocaris.plugin.flutter.tools.dependencies.completion.PubspecPackageTypedHandler"/>
+        <annotator language="yaml" implementationClass="com.mocaris.plugin.flutter.tools.assets.ResourceAnnotator"/>
         <annotator language="yaml"
                    implementationClass="com.mocaris.plugin.flutter.tools.dependencies.PubspecAnnotator"/>
         <codeInsight.inlayProvider language="yaml"
                                    implementationClass="com.mocaris.plugin.flutter.tools.dependencies.PubspecInlayHints"/>
     </extensions>
     <actions>
+        <group id="FlutterTools.ProjectViewPopup" popup="true" text="FlutterTools"
+               class="com.mocaris.plugin.flutter.tools.core.FlutterProjectActionGroup">
+            <add-to-group group-id="ProjectViewPopupMenu" anchor="last"/>
+            <action id="FlutterTools.OpenPlatformProject"
+                    class="com.mocaris.plugin.flutter.tools.platform.OpenPlatformProjectAction"/>
+            <action id="FlutterTools.GenerateSelectedAssets"
+                    class="com.mocaris.plugin.flutter.tools.assets.GenerateSelectedAssetsAction"/>
+            <action id="FlutterTools.RegisterAssets"
+                    class="com.mocaris.plugin.flutter.tools.assets.RegisterAssetsAction"/>
+            <action id="FlutterTools.RegisterAssetsRecursively"
+                    class="com.mocaris.plugin.flutter.tools.assets.RegisterAssetsRecursivelyAction"/>
+        </group>
         <!-- Add your actions here -->
         <group compact="true" id="FlutterTools.Mocaris" popup="true" text="FlutterTools">
             <add-to-group anchor="first" group-id="ToolsMenu"/>
@@ -40,6 +61,9 @@
                     id="AssetsSync" popup="true"/>
             <action class="com.mocaris.plugin.flutter.tools.dependencies.CheckPackagesAction"
                     id="FlutterTools.CheckPackages"/>
+            <separator/>
+            <action class="com.mocaris.plugin.flutter.tools.core.OpenSettingsAction"
+                    id="FlutterTools.OpenSettings"/>
         </group>
     </actions>
 </idea-plugin>

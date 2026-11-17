@@ -3,6 +3,7 @@ package com.mocaris.plugin.flutter.tools.assets
 const val PUBSPEC_FILE_NAME = "pubspec.yaml"
 const val TOOLS_FILE_NAME = "flutter_tools.yaml"
 const val DEFAULT_OUT_PATH = "lib/r.dart"
+const val DEFAULT_GENERATE_DIR = "lib/generate"
 const val DEFAULT_OUT_CLASS = "R"
 val DEFAULT_EXCLUDE = setOf(".DS_Store")
 
@@ -15,4 +16,5 @@ data class AssetsSyncConfig(
     val watcher: Boolean = false,
     val outExtension: Boolean = false,
     val excluded: Set<String> = DEFAULT_EXCLUDE,
+    val generateDir: String = DEFAULT_GENERATE_DIR,
 )

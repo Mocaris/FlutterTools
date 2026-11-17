@@ -5,6 +5,21 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class AssetsConfigEditorTest : YamlPsiTest() {
+    @Test fun generationDirectoryDefaultsAndPersistsInBlockAndFlowYaml() {
+        for (source in listOf("flutter_tools:\n  assets_sync:\n    watch: false # keep", "flutter_tools: {assets_sync: {watch: false}}")) {
+            val previous = AssetsGenerator.parseText(source)
+            assertEquals(DEFAULT_GENERATE_DIR, previous.generateDir)
+            val config = previous.copy(generateDir = "lib/custom resources")
+            val text = AssetsConfigEditor.update(yaml(source), config, previous)
+            assertEquals(config, AssetsGenerator.parseText(text))
+            if (source.contains("# keep")) assertTrue(text.contains("# keep"))
+        }
+        for (value in listOf("''", "true", "[]")) {
+            assertThrows(IllegalArgumentException::class.java) {
+                AssetsGenerator.parseText("flutter_tools: {assets_sync: {generate_dir: $value}}")
+            }
+        }
+    }
     @Test fun savingPreservesUnrelatedYamlAndUnchangedResourceComments() {
         val file = yaml("""
             # project header

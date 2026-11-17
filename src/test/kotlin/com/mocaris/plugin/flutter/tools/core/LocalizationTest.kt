@@ -1,5 +1,6 @@
 package com.mocaris.plugin.flutter.tools.core
 
+import com.intellij.DynamicBundle
 import com.intellij.util.xmlb.XmlSerializer
 import com.mocaris.plugin.flutter.tools.assets.AssetsGenerator
 import com.mocaris.plugin.flutter.tools.assets.AssetsSyncConfig
@@ -25,12 +26,37 @@ class LocalizationTest {
         finally { Locale.setDefault(previous) }
     }
 
-    @Test fun systemLanguageSelectsChineseAndFallsBackToEnglish() {
+    private fun <T> withIdeLocale(locale: Locale, action: () -> T): T {
+        val previous = DynamicBundle.getLocale()
+        fun apply(value: Locale) = DynamicBundle.loadLocale(DynamicBundle.LanguageBundleEP().apply {
+            this.locale = value.toLanguageTag()
+        })
+        try { apply(locale); return action() }
+        finally { apply(previous) }
+    }
+
+    @Test fun ideLanguageSelectsChineseAndFallsBackToEnglish() {
         assertEquals(Locale.SIMPLIFIED_CHINESE, PluginLanguage.SYSTEM.locale(Locale.TRADITIONAL_CHINESE))
         assertEquals(Locale.ENGLISH, PluginLanguage.SYSTEM.locale(Locale.FRENCH))
+        assertEquals(Locale.ENGLISH, PluginLanguage.SYSTEM.locale(Locale.ROOT))
         assertEquals(Locale.ENGLISH, PluginLanguage.ENGLISH.locale(Locale.CHINESE))
         assertEquals(Locale.SIMPLIFIED_CHINESE, PluginLanguage.CHINESE.locale(Locale.ENGLISH))
         assertEquals(PluginLanguage.SYSTEM, FlutterToolsLanguageSettings().state.language)
+    }
+
+    @Test fun followSystemUsesIdeLanguageRegardlessOfOperatingSystemLocale() {
+        withLocale(Locale.CHINESE) {
+            withIdeLocale(Locale.ENGLISH) {
+                assertEquals(Locale.ENGLISH, PluginLanguage.SYSTEM.locale())
+                assertEquals("Save configuration", FlutterToolsBundle.message("assets.save"))
+            }
+        }
+        withLocale(Locale.ENGLISH) {
+            withIdeLocale(Locale.SIMPLIFIED_CHINESE) {
+                assertEquals(Locale.SIMPLIFIED_CHINESE, PluginLanguage.SYSTEM.locale())
+                assertEquals("保存配置", FlutterToolsBundle.message("assets.save"))
+            }
+        }
     }
 
     @Test fun explicitEnglishDoesNotFallBackToTheChineseSystemLocale() = withLocale(Locale.CHINESE) {
@@ -45,6 +71,35 @@ class LocalizationTest {
         val settings = FlutterToolsLanguageSettings()
         settings.loadState(restored)
         assertEquals(PluginLanguage.CHINESE, settings.state.language)
+    }
+
+    @Test fun assetImagePreviewsDefaultOnAndPersistDisabledProjectPreferences() {
+        assertTrue(FlutterToolsSettings().state.assetImagePreviews)
+        val saved = XmlSerializer.serialize(FlutterToolsSettings.Options(assetImagePreviews = false))
+        val restored = XmlSerializer.deserialize(saved, FlutterToolsSettings.Options::class.java)
+        val settings = FlutterToolsSettings()
+        settings.loadState(restored)
+        assertFalse(settings.state.assetImagePreviews)
+    }
+
+    @Test fun editorPreferencesPersistAndOldWorkspacesReceiveDefaultValues() {
+        val old = XmlSerializer.deserialize(org.jdom.Element("Options"), FlutterToolsSettings.Options::class.java)
+        assertTrue(old.resourceAutoCompletion)
+        assertTrue(old.dependencyVersionHints)
+        assertEquals(100, old.resourceCompletionDelayMillis)
+        assertEquals(1000, old.dependencyCheckDelayMillis)
+        val options = old.copy(resourceAutoCompletion = false, resourceCompletionDelayMillis = 450,
+            dependencyVersionHints = false, dependencyCheckDelayMillis = 1500)
+        assertEquals(options, XmlSerializer.deserialize(XmlSerializer.serialize(options), FlutterToolsSettings.Options::class.java))
+    }
+
+    @Test fun loadingSettingsBoundsInvalidTimingValues() {
+        val settings = FlutterToolsSettings()
+        settings.loadState(FlutterToolsSettings.Options(cacheMinutes = 0,
+            resourceCompletionDelayMillis = -100, dependencyCheckDelayMillis = Int.MAX_VALUE))
+        assertEquals(1, settings.state.cacheMinutes)
+        assertEquals(0, settings.state.resourceCompletionDelayMillis)
+        assertEquals(10000, settings.state.dependencyCheckDelayMillis)
     }
 
     @Test fun cachedStatusesAndErrorsRenderInTheCurrentLanguage() {
@@ -62,15 +117,15 @@ class LocalizationTest {
             FlutterToolsBundle.format("error.directorySlash", Locale.ENGLISH, path))
     }
 
-    @Test fun updatingLabelsPreservesUnsavedTextAndSelection() = withLocale(Locale.ENGLISH) {
+    @Test fun updatingLabelsPreservesUnsavedTextAndSelection() = withIdeLocale(Locale.ENGLISH) {
         val label = JLabel().localized("assets.save")
         val check = JCheckBox().localized("assets.watch").apply { isSelected = true }
         val text = JTextArea("unsaved custom configuration").localizedTooltip("assets.exclusionsTip")
         val panel = JPanel().apply { add(label); add(check); add(text) }
-        withLocale(Locale.CHINESE) {
+        withIdeLocale(Locale.CHINESE) {
             FlutterToolsBundle.update(panel)
             assertEquals("保存配置", label.text)
-            assertEquals("资源变化时自动生成", check.text)
+            assertEquals("资源变动时自动生成", check.text)
             assertTrue(check.isSelected)
             assertEquals("unsaved custom configuration", text.text)
             assertEquals("每行填写一个通配符、目录或文件路径", text.toolTipText)
@@ -94,8 +149,8 @@ class LocalizationTest {
         Files.createDirectories(root.resolve("assets"))
         Files.writeString(root.resolve("assets/logo.png"), "resource")
         val yaml = "name: sample\nflutter:\n  assets: [assets/logo.png]\n"
-        val english = withLocale(Locale.ENGLISH) { AssetsGenerator.generate(root.toString(), AssetsSyncConfig(), yaml) }
-        val chinese = withLocale(Locale.CHINESE) { AssetsGenerator.generate(root.toString(), AssetsSyncConfig(), yaml) }
+        val english = withIdeLocale(Locale.ENGLISH) { AssetsGenerator.generate(root.toString(), AssetsSyncConfig(), yaml) }
+        val chinese = withIdeLocale(Locale.CHINESE) { AssetsGenerator.generate(root.toString(), AssetsSyncConfig(), yaml) }
         assertEquals(english, chinese)
     }
 }

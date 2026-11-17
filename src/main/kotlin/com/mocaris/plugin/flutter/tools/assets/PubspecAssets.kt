@@ -1,5 +1,6 @@
 package com.mocaris.plugin.flutter.tools.assets
 
+import com.mocaris.plugin.flutter.tools.core.DartPackageContext
 import com.mocaris.plugin.flutter.tools.core.requireLocalized
 import com.mocaris.plugin.flutter.tools.core.errorLocalized
 import com.google.gson.JsonParser
@@ -76,20 +77,23 @@ object PubspecAssets {
         return result.distinct()
     }
 
-    fun resolve(root: Path, declarations: List<Declaration>): List<Resolved> {
+    fun resolve(root: Path, declarations: List<Declaration>): List<Resolved> = declarations.map(resolver(root))
+
+    /** Reuse parsed package metadata while resolving multiple images; callers invalidate on config changes. */
+    internal fun resolver(root: Path): (Declaration) -> Resolved {
         val packages by lazy {
-            val config = root.resolve(".dart_tool/package_config.json")
+            val config = DartPackageContext.packageConfig(root)
             requireLocalized(Files.isRegularFile(config), "error.packageGet")
             JsonParser.parseString(Files.readString(config)).asJsonObject.getAsJsonArray("packages")
                 .associate { it.asJsonObject.let { pkg -> pkg.get("name").asString to pkg } }
         }
-        return declarations.map { declaration ->
+        return { declaration ->
             val local = AssetsGenerator.resolvePath(root, declaration.path, allowRoot = declaration.directory)
             if (!declaration.path.startsWith("packages/") || Files.exists(local)) Resolved(declaration, local)
             else {
                 val components = declaration.path.split('/', limit = 3)
                 requireLocalized(components.size == 3 && components[1].isNotEmpty(), "error.packageAsset", declaration.path)
-                val config = root.resolve(".dart_tool/package_config.json")
+                val config = DartPackageContext.packageConfig(root)
                 val pkg = packages[components[1]]
                     ?: errorLocalized("error.packageConfig", components[1])
                 val packageRoot = config.toUri().resolve(pkg.get("rootUri").asString)

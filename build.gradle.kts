@@ -23,10 +23,11 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
     intellijPlatform {
         val localIdePath = providers.gradleProperty("localIdePath").orNull
-        if (localIdePath.isNullOrBlank()) create("IC", "2023.2") else local(localIdePath)
+        if (localIdePath.isNullOrBlank()) create("IC", "2023.1") else local(localIdePath)
         bundledPlugin("org.jetbrains.plugins.yaml")
-        // IntelliJ 2023.2 includes its test framework in the SDK distribution.
+        // Use the oldest supported SDK to keep the distributed plugin compatible with newer IDEs.
         testFramework(org.jetbrains.intellij.platform.gradle.TestFrameworkType.Bundled)
+        pluginVerifier()
 
         // Add necessary plugin dependencies for compilation here, example:
         // bundledPlugin("com.intellij.java")
@@ -36,7 +37,20 @@ dependencies {
 intellijPlatform {
     pluginConfiguration {
         ideaVersion {
-            sinceBuild = "232"
+            sinceBuild = "231"
+        }
+    }
+    pluginVerification {
+        ides {
+            val localPaths = providers.gradleProperty("verificationIdePaths").orNull
+            if (localPaths.isNullOrBlank()) {
+                create("IC", "2023.1")
+                create("IC", "2024.3")
+                create("IC", "2025.2")
+                create("IU", "2026.1")
+            } else {
+                localPaths.split(';').filter { it.isNotBlank() }.forEach { local(it) }
+            }
         }
     }
 }

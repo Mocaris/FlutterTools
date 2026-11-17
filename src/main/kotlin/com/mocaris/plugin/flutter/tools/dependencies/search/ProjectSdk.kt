@@ -1,5 +1,6 @@
 package com.mocaris.plugin.flutter.tools.dependencies.search
 
+import com.mocaris.plugin.flutter.tools.core.DartPackageContext
 import com.google.gson.JsonParser
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.fileEditor.FileDocumentManager
@@ -36,7 +37,7 @@ object ProjectSdkReader {
         val spec = root.findChild("pubspec.yaml") ?: return null
         val mapping = YamlSupport.load(text(spec)) as? Map<*, *> ?: error("Invalid pubspec.yaml")
         val environment = mapping["environment"] as? Map<*, *>
-        val config = root.findChild(".dart_tool")?.findChild("package_config.json")
+        val config = DartPackageContext.packageConfig(root)
         val json = config?.let { runCatching { JsonParser.parseString(text(it)).asJsonObject }.getOrNull() }
         val flutterRoot = json?.getAsJsonArray("packages")?.firstOrNull {
             it.asJsonObject.get("name")?.asString == "flutter"
@@ -46,7 +47,8 @@ object ProjectSdkReader {
                 if (resolved.scheme == "file") Path.of(resolved).normalize().parent?.parent else null
             }.getOrNull()
         }
-        val sdkRoots = listOf(Path.of(root.path).resolve(".fvm/flutter_sdk"), flutterRoot).filterNotNull()
+        val sdkRoots = listOf(Path.of(root.path).resolve(".fvm/flutter_sdk"),
+            Path.of(DartPackageContext.root(root).path).resolve(".fvm/flutter_sdk"), flutterRoot).filterNotNull().distinct()
         val sdk = sdkRoots.firstNotNullOfOrNull { sdkRoot ->
             runCatching {
                 val file = sdkRoot.resolve("bin/cache/flutter.version.json")

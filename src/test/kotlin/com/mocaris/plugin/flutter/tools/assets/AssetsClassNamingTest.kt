@@ -50,7 +50,7 @@ class AssetsClassNamingTest {
         assertTrue(entry.contains("abstract class FeatureLoginR {"))
         assertTrue(entry.contains("class FeatureLoginRResourceMeta"))
         assertTrue(entry.contains("enum FeatureLoginRResourceKind"))
-        assertTrue(outputs.getValue(module.resolve("lib/gen/assets.g.dart")).contains("final FeatureLoginRResource"))
+        assertTrue(outputs.getValue(module.resolve("lib/generate/assets.g.dart")).contains("final FeatureLoginRResource"))
         assertFalse(entry.contains("abstract class R {"))
     }
 }

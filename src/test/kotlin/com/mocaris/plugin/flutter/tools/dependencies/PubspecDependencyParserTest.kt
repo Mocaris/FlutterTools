@@ -75,8 +75,8 @@ class PubspecDependencyParserTest : com.mocaris.plugin.flutter.tools.core.YamlPs
     }
     @Test fun externalOverridesReplaceSourceWithoutMovingTheOriginalAnchor() {
         val original = parse("dependencies:\n  http: ^1.0.0\n").single()
-        val overrides = parse("dependency_overrides:\n  http:\n    path: ../local\n")
-        val effective = PubspecDependencyParser.applyOverrides(listOf(original), overrides).single()
+        val overrides = yaml("dependency_overrides:\n  http:\n    path: ../local\n")
+        val effective = PubspecDependencyParser.parse(yaml("dependencies:\n  http: ^1.0.0\n"), overrides).single()
         assertFalse(effective.isPubDev); assertTrue(effective.overridden)
         assertEquals(original.keyOffset, effective.keyOffset)
         assertEquals(original.section, effective.section)
@@ -107,7 +107,7 @@ class PubspecDependencyParserTest : com.mocaris.plugin.flutter.tools.core.YamlPs
     }
 
     @Test fun effectiveOverridesDecideWhetherAVersionCheckIsAllowed() {
-        val dependencies = parse("""
+        val file = yaml("""
             dependencies:
               remote: ^1.0.0
               local:
@@ -116,8 +116,8 @@ class PubspecDependencyParserTest : com.mocaris.plugin.flutter.tools.core.YamlPs
               remote:
                 path: ../replacement
         """)
-        assertTrue(PubspecDependencyParser.forVersionChecks(dependencies).isEmpty())
-        val overrides = parse("""
+        assertTrue(PubspecDependencyParser.forVersionChecks(PubspecDependencyParser.parse(file)).isEmpty())
+        val overrides = yaml("""
             dependency_overrides:
               remote:
                 git:
@@ -125,10 +125,43 @@ class PubspecDependencyParserTest : com.mocaris.plugin.flutter.tools.core.YamlPs
                   ref: fixed-commit
               local: ^2.0.0
         """)
-        val checked = PubspecDependencyParser.forVersionChecks(dependencies, overrides)
+        val checked = PubspecDependencyParser.forVersionChecks(PubspecDependencyParser.parse(file, overrides))
         assertEquals(listOf("local"), checked.map { it.name })
         assertTrue(checked.single().overridden)
         assertEquals("^2.0.0", checked.single().constraint)
+    }
+
+    @Test fun externalMappingRestoresDeclarationsAndDropsInactiveInlineOverrides() {
+        val file = yaml("dependencies: {http: ^1.0.0}\ndependency_overrides: {http: {path: ../http}, old_only: ^1.0.0}")
+        val effective = PubspecDependencyParser.parse(file, yaml("dependency_overrides: {dio: ^5.0.0}"))
+        val http = effective.first { it.name == "http" }
+        assertEquals("pub.dev", http.source)
+        assertEquals("^1.0.0", http.constraint)
+        assertFalse(http.overridden)
+        assertEquals(listOf("http", "dio"), effective.map { it.name })
+        assertTrue(effective.last().overridden)
+        assertEquals(listOf("http", "dio"), PubspecDependencyParser.forVersionChecks(effective).map { it.name })
+    }
+
+    @Test fun emptyExternalOverridePropertyClearsAllInlineOverrides() {
+        val file = yaml("dependencies: {http: ^1.0.0}\ndependency_overrides: {http: {path: ../http}, extra: ^1.0.0}")
+        for (value in listOf("{}", "null", "~", "")) {
+            val result = PubspecDependencyParser.parse(file, yaml("dependency_overrides: $value")).single()
+            assertEquals(value, "^1.0.0", result.constraint)
+            assertFalse(value, result.overridden)
+        }
+    }
+
+    @Test fun externalFileWithoutOverridePropertyRetainsInlineOverrides() {
+        val file = yaml("dependencies: {http: ^1.0.0}\ndependency_overrides: {http: {path: ../http}}")
+        for (text in listOf("", "# no overrides", "resolution: workspace")) {
+            val result = PubspecDependencyParser.parse(file, yaml(text)).single()
+            assertTrue(result.overridden)
+            assertEquals("path", result.source)
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            PubspecDependencyParser.parse(file, yaml("dependency_overrides: [http]"))
+        }
     }
 
     private fun updateYaml(text: String, name: String = "http", latest: String = "2.3.4"): String {
@@ -201,7 +234,7 @@ class PubspecDependencyParserTest : com.mocaris.plugin.flutter.tools.core.YamlPs
         java.nio.file.Files.createDirectories(fvm.parent)
         java.nio.file.Files.writeString(fvm, "executable")
         assertEquals(fvm.toString(), FlutterPubGetRunner.executable(root, false))
-        assertEquals("flutter", FlutterPubGetRunner.executable(commandFolder.newFolder("empty").toPath(), false))
+        assertEquals("dart", FlutterPubGetRunner.executable(commandFolder.newFolder("empty").toPath(), false))
     }
 
     @Test fun versionUnderlineTargetsTheScalarAndExcludesComments() {

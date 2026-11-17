@@ -16,12 +16,14 @@ internal class PubHttpClient(
 ) {
     @Volatile private var retryPrimaryAt = 0L
 
-    fun <T> get(path: String, decode: (JsonObject) -> T): T {
+    fun <T> get(path: String, decode: (JsonObject) -> T): T = text(path) { decode(JsonParser.parseString(it).asJsonObject) }
+
+    fun <T> text(path: String, decode: (String) -> T): T {
         val hosts = if (now() < retryPrimaryAt) listOf(MIRROR, PRIMARY) else listOf(PRIMARY, MIRROR)
         var failure: Exception? = null
         for (host in hosts) {
             try {
-                val result = decode(JsonParser.parseString(read(host + path)).asJsonObject)
+                val result = decode(read(host + path))
                 if (host == PRIMARY) retryPrimaryAt = 0
                 return result
             } catch (e: ProcessCanceledException) { throw e }
