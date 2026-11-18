@@ -69,12 +69,19 @@ object AssetsGenerator {
     }
 
     /** Shared Flutter scanning semantics for generation and inspections. */
-    fun collect(root: Path, config: AssetsSyncConfig, resources: List<PubspecAssets.Resolved>): List<PubspecAssets.Resolved> {
+    fun collect(root: Path, config: AssetsSyncConfig, resources: List<PubspecAssets.Resolved>): List<PubspecAssets.Resolved> =
+        collect(config, resources, excludedOutputPaths(root, config))
+
+    internal fun excludedOutputPaths(root: Path, config: AssetsSyncConfig): Set<Path> {
         val entry = validateOutput(root, config.outPath)
-        val allOutputs = outputPaths(root, config).values.toSet() + setOf(entry) + legacyOutputPaths(root, config)
+        return outputPaths(root, config).values.toSet() + setOf(entry) + legacyOutputPaths(root, config)
+    }
+
+    internal fun collect(config: AssetsSyncConfig, resources: List<PubspecAssets.Resolved>, allOutputs: Set<Path>): List<PubspecAssets.Resolved> {
+        val excluded = exclusionMatcher(config.excluded)
         val nodes = linkedMapOf<PubspecAssets.Declaration, PubspecAssets.Resolved>()
         fun add(key: String, file: Path, declaration: PubspecAssets.Declaration) {
-            if (file in allOutputs || config.excluded.any { matchesExcluded(key, it) }) return
+            if (file in allOutputs || excluded(key)) return
             requireLocalized(!Files.isDirectory(file), "error.directorySlash", key)
             if (!Files.isRegularFile(file)) {
                 val hasVariants = declaration.kind == PubspecAssets.Kind.ASSET && Files.isDirectory(file.parent) &&
@@ -90,7 +97,7 @@ object AssetsGenerator {
         resources.forEach { resource ->
             val declaration = resource.declaration
             val declarationKey = if (declaration.directory) resource.bundleDirectory else declaration.path
-            if (config.excluded.any { matchesExcluded(declarationKey, it) }) return@forEach
+            if (excluded(declarationKey)) return@forEach
             if (declaration.directory) {
                 requireLocalized(Files.isDirectory(resource.file), "error.assetDirectoryMissing", declaration.path)
                 Files.newDirectoryStream(resource.file).use { children ->
@@ -154,7 +161,7 @@ object AssetsGenerator {
     }
 
     internal fun dartName(value: String, prefix: String = "asset"): String {
-        val parts = value.split(Regex("[^a-zA-Z0-9]+")).filter { it.isNotEmpty() }
+        val parts = value.split(nameSeparator).filter { it.isNotEmpty() }
         var name = parts.mapIndexed { index, part -> if (index == 0) part else part.replaceFirstChar { it.uppercaseChar() } }.joinToString("")
         if (name.isEmpty()) name = prefix
         if (name.first().isDigit() || name in keywords || name in setOf("hashCode", "runtimeType", "toString", "noSuchMethod")) {
@@ -177,26 +184,37 @@ object AssetsGenerator {
             Files.newBufferedReader(output).use { it.readLine() } == GENERATED_MARKER, "error.outputProtected", output)
     }
 
-    fun matchesExcluded(path: String, pattern: String): Boolean {
+    fun matchesExcluded(path: String, pattern: String): Boolean = compileExclusion(pattern)(path)
+
+    /** Compile once per scan; keep matching behavior shared with the public single-pattern helper. */
+    internal fun exclusionMatcher(patterns: Set<String>): (String) -> Boolean {
+        val matchers = patterns.map(::compileExclusion)
+        return { path -> matchers.any { it(path) } }
+    }
+
+    private fun compileExclusion(pattern: String): (String) -> Boolean {
         val normalized = pattern.replace('\\', '/')
         if (normalized.endsWith('/')) {
             val directory = normalized.trimEnd('/')
-            return path == directory || path.startsWith("$directory/")
+            return { path -> path == directory || path.startsWith("$directory/") }
         }
         if ('*' !in normalized && '?' !in normalized) {
-            if ('/' !in normalized && normalized.startsWith('.')) return path.substringAfterLast('/') == normalized
-            return path == normalized || path.startsWith("$normalized/")
+            if ('/' !in normalized && normalized.startsWith('.')) return { path -> path.substringAfterLast('/') == normalized }
+            return { path -> path == normalized || path.startsWith("$normalized/") }
         }
         val expression = buildString {
             append('^')
             normalized.forEach { ch -> append(when (ch) { '*' -> ".*"; '?' -> "."; else -> Regex.escape(ch.toString()) }) }
             append('$')
         }
-        return Regex(expression).matches(if ('/' in normalized) path else path.substringAfterLast('/'))
+        val regex = Regex(expression)
+        return if ('/' in normalized) { path -> regex.matches(path) }
+            else { path -> regex.matches(path.substringAfterLast('/')) }
     }
 
     internal fun escapeDart(value: String) = value.replace("\\", "\\\\").replace("\"", "\\\"")
         .replace("$", "\\$").replace("\n", "\\n").replace("\r", "\\r")
     private val identifier = Regex("[a-zA-Z_][a-zA-Z0-9_]*")
+    private val nameSeparator = Regex("[^a-zA-Z0-9]+")
     private val keywords = setOf("abstract", "as", "assert", "async", "await", "base", "break", "case", "catch", "class", "const", "continue", "covariant", "default", "deferred", "do", "dynamic", "else", "enum", "export", "extends", "extension", "external", "factory", "false", "final", "finally", "for", "Function", "get", "hide", "if", "implements", "import", "in", "interface", "is", "late", "library", "mixin", "new", "null", "of", "on", "operator", "part", "required", "rethrow", "return", "sealed", "set", "show", "static", "super", "switch", "sync", "this", "throw", "true", "try", "typedef", "var", "void", "when", "while", "with", "yield")
 }

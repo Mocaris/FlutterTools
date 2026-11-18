@@ -75,6 +75,16 @@ class AssetsGeneratorTest {
         assertTrue(AssetsGenerator.matchesExcluded("assets/.DS_Store", ".DS_Store"))
         assertFalse(AssetsGenerator.matchesExcluded("assets/foo.DS_Store", ".DS_Store"))
     }
+    @Test fun exclusionRulesKeepLiteralGlobAndDirectorySemanticsDuringCollection() {
+        val paths = listOf("assets/keep.png", "assets/a.tmp", "assets/file[1].png", "assets/.DS_Store",
+            "assets/cache/hidden.png", "assets/cache_other/visible.png", "assets/icon1.svg", "assets/icon12.svg")
+        paths.forEach { asset(it) }
+        pubspec(*paths.toTypedArray())
+        val rules = setOf("*.tmp", "file[1].*", ".DS_Store", "assets\\cache/", "icon?.svg")
+        val resources = PubspecAssets.resolve(folder.root.toPath(), PubspecAssets.parse(File(folder.root, "pubspec.yaml").readText()))
+        assertEquals(listOf("assets/keep.png", "assets/cache_other/visible.png", "assets/icon12.svg"),
+            AssetsGenerator.collect(folder.root.toPath(), config(excluded = rules), resources).map { it.declaration.path })
+    }
     @Test fun excludedFilesAndGeneratedOutputAreOmitted() {
         asset("assets/a.png"); asset("assets/.DS_Store"); asset("assets/r.dart")
         val text = generateText(folder.root.path, config(excluded = setOf(".DS_Store")).copy(outPath = "assets/r.dart"))

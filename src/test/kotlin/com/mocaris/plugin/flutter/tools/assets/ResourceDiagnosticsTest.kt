@@ -72,6 +72,24 @@ class ResourceDiagnosticsTest : YamlPsiTest() {
         assertEquals("assets", issues.single().element.text)
     }
 
+    @Test fun externalResourcesShareResolutionAndRefreshMetadataOnTheNextInspection() {
+        file("dep/lib/a.png"); file("dep/lib/b.png")
+        val config = root.resolve(".dart_tool/package_config.json")
+        Files.createDirectories(config.parent)
+        Files.writeString(config, """{"packages":[{"name":"dep","rootUri":"../dep","packageUri":"lib/"}]}""")
+        val source = "name: app\nflutter:\n  assets: [packages/dep/a.png, packages/dep/b.png]\n"
+        assertTrue(issues(source).isEmpty())
+        Files.writeString(config, """{"packages":[]}""")
+        assertEquals(2, issues(source).count { it.message.key == "error.packageConfig" })
+    }
+
+    @Test fun invalidOutputPathsStillReportEachDeclarationAndTheConfigurationError() {
+        file("a.png"); file("b.png")
+        val result = ResourceDiagnostics.inspect(yaml("name: app\nflutter:\n  assets: [a.png, b.png]"), root,
+            AssetsSyncConfig(outPath = "../r.dart"))
+        assertEquals(3, result.count { it.message.key == "error.pathInside" })
+    }
+
     @Test fun removingFlowDuplicatesKeepsOtherItemsAndComments() {
         for (paths in listOf("[a.png, a.png, b.png]", "[a.png, b.png, a.png]", "[a.png, a.png]")) {
             val duplicate = issues("name: app\nflutter:\n  assets: $paths # keep\n").single { it.remove }

@@ -19,9 +19,13 @@ internal object ResourcePathIndex {
     const val MAX_ENTRIES = 10_000
     private const val MAX_PATH_CHARS = 2 * 1024 * 1024
     data class Snapshot(val items: Map<String, ResourceCandidate>, val watched: List<PubspecAssets.Resolved>) {
+        private val sorted = items as? java.util.SortedMap<String, ResourceCandidate> ?: items.toSortedMap()
+
         fun matches(prefix: String): Sequence<ResourceCandidate> {
             val base = prefix.substringBeforeLast('/', "") + "/"
-            val candidates = items.values.asSequence().filter { it.request.path.startsWith(prefix) && (!it.directory || it.request.path != prefix) }
+            // Seek directly to the prefix instead of walking every resource on each keystroke.
+            val candidates = sorted.tailMap(prefix).values.asSequence().takeWhile { it.request.path.startsWith(prefix) }
+                .filter { !it.directory || it.request.path != prefix }
             return candidates.filter { it.directory && '/' !in it.request.path.removePrefix(base).trimEnd('/') } +
                 candidates.filterNot { it.directory }
         }

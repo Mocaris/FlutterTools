@@ -23,6 +23,10 @@ object ResourceDiagnostics {
         }
         val flutter = entry.value as? YAMLMapping ?: return listOf(Issue(entry, text("error.flutterMapping")))
         val packageName = (top.getKeyValueByKey("name")?.value as? YAMLScalar)?.textValue ?: "app"
+        val resolve = PubspecAssets.resolver(root)
+        // Scope metadata reuse to this inspection so subsequent edits still revalidate paths.
+        val allOutputs by lazy { AssetsGenerator.excludedOutputPaths(root, config) }
+        val scanConfig = config.copy(excluded = emptySet())
         val resources = mutableListOf<PubspecAssets.Resolved>()
         val seen = mutableSetOf<Pair<PubspecAssets.Kind, Any>>()
         fun paths(items: List<YAMLSequenceItem>, kind: PubspecAssets.Kind, font: PubspecAssets.Font? = null) {
@@ -46,12 +50,12 @@ object ResourceDiagnostics {
                     return@forEach
                 }
                 try {
-                    val resolved = PubspecAssets.resolve(root, listOf(declaration)).single()
+                    val resolved = resolve(declaration)
                     if (!declaration.directory && Files.isDirectory(resolved.file)) {
                         issue(scalar, "error.directorySlash", path,
                             replacement = if (kind == PubspecAssets.Kind.ASSET) quote("$path/") else null)
                     } else {
-                        resources.addAll(AssetsGenerator.collect(root, config.copy(excluded = emptySet()), listOf(resolved)))
+                        resources.addAll(AssetsGenerator.collect(scanConfig, listOf(resolved), allOutputs))
                     }
                 } catch (e: ProcessCanceledException) { throw e }
                 catch (e: Exception) {
@@ -100,10 +104,12 @@ object ResourceDiagnostics {
         try {
             AssetsGenerator.validateClassName(config.outClass)
             val outputs = AssetsGenerator.outputPaths(root, config)
+            val excluded = AssetsGenerator.exclusionMatcher(config.excluded)
+            val declarations = resources.map { it.declaration }.distinct().filterNot { excluded(it.path) }.groupBy { it.kind }
             outputs.forEach { (kind, output) ->
                 try {
                     AssetsDartTemplate.part(root.resolve(config.outPath), output, config, kind,
-                        resources.map { it.declaration }.distinct().filter { it.kind == kind && config.excluded.none { pattern -> AssetsGenerator.matchesExcluded(it.path, pattern) } })
+                        declarations[kind].orEmpty())
                 } catch (e: LocalizedException) {
                     issues.add(Issue(flutter.getKeyValueByKey(AssetsDartTemplate.resourceName(kind))?.key ?: entry, e.text))
                 }

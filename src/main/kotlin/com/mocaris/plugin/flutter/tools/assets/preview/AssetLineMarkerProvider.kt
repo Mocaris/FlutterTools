@@ -32,9 +32,14 @@ class AssetLineMarkerProvider : LineMarkerProviderDescriptor(), DumbAware {
         for (element in elements) {
             if (element.firstChild != null) continue
             val file = element.containingFile ?: continue
-            if (file.language.id != "Dart" || file.textLength > GeneratedAssetReferences.MAX_FILE_CHARS) continue
-            if (!file.project.service<FlutterToolsSettings>().effective().assetImagePreviews) continue
+            if (file.language.id != "Dart") continue
+            if (element.node.elementType.toString() !in stringStarts) continue
             val context = if (contexts.containsKey(file)) contexts[file] else {
+                if (file.textLength > GeneratedAssetReferences.MAX_FILE_CHARS ||
+                    !file.project.service<FlutterToolsSettings>().effective().assetImagePreviews) {
+                    contexts[file] = null
+                    continue
+                }
                 val generated = file.text.startsWith(AssetsGenerator.GENERATED_MARKER)
                 val references = if (generated) CachedValuesManager.getCachedValue(file) {
                     CachedValueProvider.Result.create(GeneratedAssetReferences.parse(file.text), file)
@@ -44,7 +49,6 @@ class AssetLineMarkerProvider : LineMarkerProviderDescriptor(), DumbAware {
                     if (generated) null else file.project.service<ResourceCompletionService>().snapshot(it)
                 }) }.also { contexts[file] = it }
             } ?: continue
-            if (element.node.elementType.toString() !in stringStarts) continue
             val request = if (context.generated) {
                 val reference = context.references[element.textOffset] ?: continue
                 ImageRequest(context.root.path, reference.packageName, reference.path)

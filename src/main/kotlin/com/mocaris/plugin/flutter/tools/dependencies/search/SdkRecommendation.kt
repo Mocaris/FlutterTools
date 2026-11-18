@@ -34,9 +34,9 @@ object SdkRecommendation {
     fun recommend(releases: List<PackageRelease>, sdk: ProjectSdk?, prerelease: Boolean = false): Result {
         val eligible = releases.mapNotNull { release -> PubVersion.parse(release.version)?.let { it to release } }
             .filter { prerelease || it.first.prerelease.isEmpty() }.sortedByDescending { it.first }
-        val states = eligible.map { it.second to compatibility(it.second, sdk) }
         // If a higher release has unknown requirements, the highest compatible version is unconfirmed.
-        for ((release, status) in states) {
+        for ((_, release) in eligible) {
+            val status = compatibility(release, sdk)
             if (status == Status.UNKNOWN) return Result(null, Status.UNKNOWN)
             if (status == Status.COMPATIBLE) return Result(release.version, status)
         }

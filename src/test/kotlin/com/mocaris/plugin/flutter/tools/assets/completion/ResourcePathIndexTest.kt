@@ -40,6 +40,20 @@ class ResourcePathIndexTest {
         assertEquals(root.resolve("assets/logo.png"), item.file)
     }
 
+    @Test fun prefixLookupPreservesDirectoryPriorityAndExactUnicodeBoundaries() {
+        listOf("assets/a.png", "assets/a/deep/file.png", "assets/ab.png", "assets/b.png",
+            "assets/图标/logo.png", "assets/图标2.png").forEach { file(it) }
+        val snapshot = ResourcePathIndex.collect(root, "name: app\nflutter:\n  assets: [assets/]")
+        assertEquals(listOf("assets/a/", "assets/a.png", "assets/a/deep/file.png", "assets/ab.png"),
+            snapshot.matches("assets/a").map { it.request.path }.toList())
+        assertEquals(listOf("assets/a/deep/", "assets/a/deep/file.png"),
+            snapshot.matches("assets/a/").map { it.request.path }.toList())
+        assertEquals(listOf("assets/图标/", "assets/图标/logo.png", "assets/图标2.png"),
+            snapshot.matches("assets/图标").map { it.request.path }.toList())
+        assertTrue(snapshot.matches("assets/z").none())
+        assertEquals(listOf("assets/a.png"), snapshot.matches("assets/a.png").map { it.request.path }.toList())
+    }
+
     @Test fun missingEntriesDoNotSuppressValidFilesAndExplicitVariantsStayExplicit() {
         file("assets/2.0x/a.png"); file("assets/data.json")
         val snapshot = ResourcePathIndex.collect(root, "name: app\nflutter:\n  assets: [missing/, assets/absent.png, assets/2.0x/a.png, assets/data.json]")
