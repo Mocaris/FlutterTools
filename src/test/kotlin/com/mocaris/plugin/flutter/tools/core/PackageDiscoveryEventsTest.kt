@@ -6,7 +6,7 @@ import com.intellij.testFramework.LightVirtualFile
 import org.junit.Assert.*
 import org.junit.Test
 
-class PackageDiscoveryEventsTest {
+class PackageDiscoveryEventsTest : com.intellij.testFramework.fixtures.LightPlatformCodeInsightFixture4TestCase() {
     private class Directory(private val location: String, private val owner: VirtualFile? = null) : LightVirtualFile(location.substringAfterLast('/')) {
         override fun isDirectory() = true
         override fun getPath() = location

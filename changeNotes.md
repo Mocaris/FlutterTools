@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Support WebP resource recognition and bounded previews, Ctrl/Cmd navigation from Dart resource strings, native Pub workspace/Melos membership and a Melos panel after Project Settings with in-place Workspace/Melos conversion, Bootstrap/Clean and script execution with Run-window output and cancellation.
 - Include subdirectories and descendant files in resource path completion, continue browsing after selecting a folder, and use a 100 ms throttle. Anchor generated resource preview icons on the path string line.
 - Complete pubspec resource paths inside Dart strings with thumbnails/file icons and file sizes. Share the default-on Resource previews switch across completion lists, string gutters and generated resources; use lazy, bounded loading.
 - Add parenthesized unused hints beside latest-version hints for runtime dependencies without direct Dart import/export references. Include unsaved, conditional and test/tool references; exclude SDK/dev dependencies and generated/cache/nested-package sources. Scan in the background with bounded, incremental reference caching and suppress unused conclusions for incomplete scans.
@@ -9,7 +10,7 @@
 - Add quick resource registration from the Project view for files and directories in the same Flutter package. Preserve pubspec comments and other settings, skip duplicate/shallow-covered entries, support Undo and trigger resource generation.
 - Add version-specific README/CHANGELOG previews to dependency update menus and Package Search, with release selection, discontinued/replacement status and a browser fallback. Load tabs on demand with bounded requests, HTML size and document caching.
 
-- Add optional Dart image gutters for generated assets.g.dart, with PNG/JPEG/GIF/BMP/SVG thumbnails, metadata tooltips and a larger click preview/file navigation. Add an Assets panel switch that defaults on, persists per project and applies immediately.
+- Add optional Dart image gutters for generated assets.g.dart, with PNG/JPEG/GIF/BMP/SVG/WebP thumbnails, metadata tooltips and a larger click preview/file navigation. Add an Assets panel switch that defaults on, persists per project and applies immediately.
 - Load only visible thumbnails, cap readers/queues/cache/popup sizes, subsample raster files, cancel work when disabled/closed and invalidate affected resources and package locations on VFS changes. Keep the Dart extension optional and use platform PSI APIs.
 
 - Add pubspec resource diagnostics for missing paths, duplicates, invalid sections/fonts and generated-name conflicts. Offer existing-resource selection, directory slash/font-value repairs and duplicate removal that retains comments, with IDE Undo.

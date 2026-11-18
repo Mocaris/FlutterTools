@@ -34,6 +34,7 @@ class FlutterToolsPanel(private val project: Project) : JPanel(BorderLayout()), 
     private val tabs = JBTabbedPane()
     private val preferences = ProjectPreferencesPanel(project)
     private val packages = ComboBox<VirtualFile>()
+    private val melos = com.mocaris.plugin.flutter.tools.workspace.MelosPanel(project)
     private val assets = AssetsConfigurationPanel(project)
     private val dependencies = DependenciesPanel(project)
     private val search = PackageSearchPanel(project)
@@ -68,6 +69,7 @@ class FlutterToolsPanel(private val project: Project) : JPanel(BorderLayout()), 
         tabs.addTab(message("tab.assets"), assets); tabs.addTab(message("tab.packages"), dependencies)
         tabs.addTab(message("tab.search"), search)
         tabs.addTab(message("tab.settings"), preferences)
+        tabs.addTab("Melos", melos)
         add(tabs, BorderLayout.CENTER)
         ApplicationManager.getApplication().messageBus.connect(this).subscribe(LanguageListener.TOPIC, LanguageListener {
             languages.selectedItem = languageSettings.state.language
@@ -75,6 +77,7 @@ class FlutterToolsPanel(private val project: Project) : JPanel(BorderLayout()), 
             tabs.setTitleAt(0, message("tab.assets")); tabs.setTitleAt(1, message("tab.packages"))
             tabs.setTitleAt(2, message("tab.search")); tabs.setTitleAt(3, message("tab.settings"))
             preferences.updateLanguage()
+            melos.updateLanguage()
             assets.updateLanguage(); dependencies.updateLanguage()
             search.updateLanguage()
             languages.repaint(); packages.repaint()
@@ -106,6 +109,7 @@ class FlutterToolsPanel(private val project: Project) : JPanel(BorderLayout()), 
         }
         assets.refresh(); dependencies.refresh()
         search.refresh()
+        melos.refresh(root, available)
     }
-    override fun dispose() { timer.stop(); search.dispose(); com.intellij.openapi.util.Disposer.dispose(preferences) }
+    override fun dispose() { timer.stop(); search.dispose(); com.intellij.openapi.util.Disposer.dispose(preferences); melos.dispose() }
 }

@@ -1,5 +1,6 @@
 package com.mocaris.plugin.flutter.tools.dependencies.ui
 
+import com.mocaris.plugin.flutter.tools.core.ui.ContentScrollPane
 import com.intellij.ide.BrowserUtil
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.service
@@ -35,7 +36,7 @@ class PackageDocumentationDialog(private val project: Project, private val name:
         isEditable = false
         putClientProperty(JEditorPane.HONOR_DISPLAY_PROPERTIES, true)
         font = UIUtil.getLabelFont()
-        border = JBUI.Borders.empty(8)
+        border = JBUI.Borders.empty()
         addHyperlinkListener { event ->
             if (event.eventType == HyperlinkEvent.EventType.ACTIVATED) {
                 if (event.description?.startsWith('#') == true) scrollToReference(event.description.removePrefix("#"))
@@ -57,7 +58,7 @@ class PackageDocumentationDialog(private val project: Project, private val name:
             }, BorderLayout.NORTH)
             add(status, BorderLayout.SOUTH)
         }, BorderLayout.NORTH)
-        kinds.forEachIndexed { index, kind -> tabs.addTab(message("docs.$kind"), JBScrollPane(editors[index])) }
+        kinds.forEachIndexed { index, kind -> tabs.addTab(message("docs.$kind"), ContentScrollPane(editors[index])) }
         add(tabs, BorderLayout.CENTER)
     }
 

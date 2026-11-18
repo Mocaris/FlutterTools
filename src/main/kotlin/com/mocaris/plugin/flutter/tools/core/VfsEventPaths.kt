@@ -7,7 +7,9 @@ import com.intellij.openapi.vfs.newvfs.events.*
 object VfsEventPaths {
     /** Refreshing a new directory can report its whole subtree in a single creation event. */
     fun affectsPackageDiscovery(event: VFileEvent): Boolean =
-        event !is VFileContentChangeEvent && (paths(event).any { it.endsWith("/pubspec.yaml") } ||
+        (if (event is VFileContentChangeEvent) WorkspaceLayout.configurationContent(event.file)
+         else paths(event).any { it.substringAfterLast('/') in WorkspaceLayout.configurationNames }) ||
+        event !is VFileContentChangeEvent && (
             event is VFileCreateEvent && event.isDirectory || event.file?.isDirectory == true &&
             (event is VFileMoveEvent || event is VFileCopyEvent || event is VFileDeleteEvent ||
                 event is VFilePropertyChangeEvent && event.propertyName == VirtualFile.PROP_NAME))

@@ -37,7 +37,7 @@ class AssetsSyncService(private val project: Project) : BulkFileListener, Dispos
     private val requests = Channel<Request>(Channel.UNLIMITED)
     private val watchedResources = ConcurrentHashMap<String, List<PubspecAssets.Resolved>>()
     private val generatedOutputs = ConcurrentHashMap<String, Set<Path>>()
-    private val configNames = setOf(PUBSPEC_FILE_NAME, TOOLS_FILE_NAME, "package_config.json", "pubspec_overrides.yaml")
+    private val configNames = setOf(PUBSPEC_FILE_NAME, TOOLS_FILE_NAME, "package_config.json", "pubspec_overrides.yaml", "melos.yaml")
     private val statuses = ConcurrentHashMap<String, LocalizedText>()
     fun status(root: VirtualFile): String = (statuses[root.path] ?: text("ready")).toString()
 
@@ -46,7 +46,8 @@ class AssetsSyncService(private val project: Project) : BulkFileListener, Dispos
         EditorFactory.getInstance().eventMulticaster.addDocumentListener(object : DocumentListener {
             override fun documentChanged(event: DocumentEvent) {
                 val file = FileDocumentManager.getInstance().getFile(event.document) ?: return
-                if (file.name in setOf(PUBSPEC_FILE_NAME, TOOLS_FILE_NAME, "pubspec_overrides.yaml")) requests.trySend(Request(setOf(file.path), editing = true))
+                if (file.name in configNames) requests.trySend(Request(setOf(file.path), editing = true,
+                    rediscover = com.mocaris.plugin.flutter.tools.core.WorkspaceLayout.configurationChanged(event)))
             }
         }, this)
         project.messageBus.connect(this).subscribe(com.intellij.ProjectTopics.PROJECT_ROOTS, object : com.intellij.openapi.roots.ModuleRootListener {

@@ -8,19 +8,15 @@ import com.intellij.ui.DocumentAdapter
 import com.intellij.ui.components.*
 import com.intellij.openapi.util.text.StringUtil
 import com.intellij.util.ui.JBUI
-import com.intellij.util.ui.JBValue
 import com.mocaris.plugin.flutter.tools.assets.*
 import com.mocaris.plugin.flutter.tools.core.FlutterToolsBundle
+import com.mocaris.plugin.flutter.tools.core.ui.ContentScrollPane
 import com.mocaris.plugin.flutter.tools.core.ui.ResultTextArea
 import com.mocaris.plugin.flutter.tools.core.FlutterToolsBundle.localized
 import com.mocaris.plugin.flutter.tools.core.FlutterToolsBundle.localizedTooltip
 import com.mocaris.plugin.flutter.tools.core.FlutterToolsBundle.message
 import java.awt.FlowLayout
 import java.awt.Dimension
-import java.awt.Graphics
-import java.awt.Graphics2D
-import java.awt.RenderingHints
-import java.awt.geom.RoundRectangle2D
 import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
 import java.awt.Insets
@@ -51,12 +47,12 @@ class AssetsConfigurationPanel(private val project: Project) : JBScrollPane() {
     init {
         val form = JPanel(GridBagLayout())
         row(form, "assets.source", source)
-        row(form, "assets.resources", contentPane(resourcePaths), true)
+        row(form, "assets.resources", ContentScrollPane(resourcePaths), true)
         row(form, "", button("assets.editPubspec") {
             root?.findChild(PUBSPEC_FILE_NAME)?.let { com.intellij.openapi.fileEditor.OpenFileDescriptor(project, it).navigate(true) }
         })
         exclusions.localizedTooltip("assets.exclusionsTip")
-        row(form, "assets.excluded", contentPane(exclusions))
+        row(form, "assets.excluded", ContentScrollPane(exclusions))
         output.localizedTooltip("assets.entryTip")
         row(form, "assets.entry", output)
         generateDir.localizedTooltip("assets.generateDirTip")
@@ -69,7 +65,7 @@ class AssetsConfigurationPanel(private val project: Project) : JBScrollPane() {
         }, button("assets.generate") {
             if (!dirty || save()) root?.let { assets.generate(it) }
         }))
-        row(form, "assets.result", contentPane(status).apply {
+        row(form, "assets.result", ContentScrollPane(status).apply {
             minimumSize = Dimension(0, preferredSize.height)
         })
         setViewportView(form)
@@ -83,25 +79,6 @@ class AssetsConfigurationPanel(private val project: Project) : JBScrollPane() {
 
     private fun button(text: String, action: () -> Unit) = JButton().localized(text).apply { addActionListener { action() } }
     private fun buttons(vararg components: JComponent) = JPanel(FlowLayout(FlowLayout.LEFT, 4, 0)).apply { components.forEach { add(it) } }
-    private fun contentPane(component: JComponent) = object : JBScrollPane(component) {
-        private val arc = JBValue.UIInteger("Component.arc", 5)
-        override fun isPaintingOrigin() = true
-        override fun paint(graphics: Graphics) {
-            val canvas = graphics.create() as Graphics2D
-            try {
-                val shape = RoundRectangle2D.Float(0f, 0f, width.toFloat(), height.toFloat(), arc.float, arc.float)
-                canvas.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
-                canvas.color = component.background
-                canvas.fill(shape)
-                canvas.clip(shape)
-                super.paint(canvas)
-            } finally { canvas.dispose() }
-        }
-    }.apply {
-        isOpaque = false
-        border = JBUI.Borders.empty(8)
-        viewportBorder = null
-    }
     private fun row(form: JPanel, label: String, component: JComponent, grow: Boolean = false) {
         val index = form.componentCount / 2
         val title = object : JLabel() {

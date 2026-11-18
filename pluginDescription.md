@@ -2,6 +2,7 @@
 
 Flutter asset generation, dependency checks and pub.dev package search for IntelliJ IDEA and Android Studio.
 
+- Support WebP resource recognition and bounded previews, Ctrl/Cmd navigation from Dart resource strings, native Pub workspace/Melos membership and a Melos panel after Project Settings with in-place Workspace/Melos conversion, Bootstrap/Clean and script execution with Run-window output and cancellation.
 - Complete pubspec resource paths inside Dart strings with thumbnails/file icons and file sizes. Share the default-on Resource previews switch across completion lists, string gutters and generated resources; use lazy, bounded loading.
 - Open the right-side tool window from **View > Tool Windows > FlutterTools** or **Tools > FlutterTools > Open ToolWindow**. Select a package and switch between Assets, Packages and Package Search.
 - Use English or Chinese, follow the system language by default, and switch languages without restarting. Icons and list colors adapt to light and dark themes.
@@ -9,7 +10,7 @@ Flutter asset generation, dependency checks and pub.dev package search for Intel
 - Register selected resource files or directories from **Project > FlutterTools > Add to Flutter assets**, preserving pubspec comments, avoiding duplicate entries and generating resources for the selected package.
 - Preview version-specific README and CHANGELOG from dependency update menus or Package Search. Switch releases, check discontinued/replacement status and open the original pub.dev page.
 - Recommend SDK compatible releases for the destination package alongside the latest published version, with explicit selection and optional pub get.
-- Preview PNG/JPEG/GIF/BMP/SVG thumbnails and other file-type icons beside generated resource fields or declared Dart path strings. Use the default-on project switch in Assets; hover for metadata, click for a bounded larger preview and file navigation. Reads are lazy, cancellable and cached with fixed limits.
+- Preview PNG/JPEG/GIF/BMP/SVG/WebP thumbnails and other file-type icons beside generated resource fields or declared Dart path strings. Use the default-on project switch in Assets; hover for metadata, click for a bounded larger preview and file navigation. Reads are lazy, cancellable and cached with fixed limits.
 - Generate resources from `pubspec.yaml` assets, fonts and shaders. Configure exclusions, output file/class, extensions and automatic generation through YAML or the visual configuration page.
 - Generate a Dart entry plus three parts in a configurable directory (default `lib/generate/`). Access assets by directory, such as `R.assets.images.tab.icTabHome.path`; use immutable resource metadata and font-family groups with Flutter weight/style types.
 - Generate resources independently for discovered modules. The main project defaults to class `R`; other packages use names such as `FeatureLoginR`, with an optional explicit class override.

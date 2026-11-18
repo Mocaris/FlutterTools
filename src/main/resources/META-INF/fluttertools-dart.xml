@@ -1,5 +1,6 @@
 <idea-plugin>
     <extensions defaultExtensionNs="com.intellij">
+        <gotoDeclarationHandler implementation="com.mocaris.plugin.flutter.tools.assets.completion.ResourceNavigationHandler"/>
         <codeInsight.lineMarkerProvider language="Dart"
             implementationClass="com.mocaris.plugin.flutter.tools.assets.preview.AssetLineMarkerProvider"/>
         <completion.contributor language="Dart" implementationClass="com.mocaris.plugin.flutter.tools.assets.completion.ResourcePathCompletion"/>

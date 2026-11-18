@@ -9,7 +9,7 @@ internal object GeneratedAssetReferences {
     private const val STRING = "(\"[^\"\\\\]*+(?:\\\\.[^\"\\\\]*+)*+\"|'[^'\\\\]*+(?:\\\\.[^'\\\\]*+)*+')"
     private val field = Regex("""\bfinal\s+([A-Za-z_][A-Za-z_0-9]*)Resource\s+([A-Za-z_][A-Za-z_0-9]*)\s*=\s*const\s+\1Resource\s*\(\s*\1ResourceMeta\s*\(\s*$STRING\s*,\s*$STRING\s*,\s*\1ResourceKind\s*\.\s*(?:assets|shaders)\b""")
     private val packageName = Regex("[a-z_][a-z0-9_]*")
-    private val extensions = setOf("png", "jpg", "jpeg", "gif", "bmp", "svg")
+    private val extensions = setOf("png", "jpg", "jpeg", "gif", "bmp", "svg", "webp")
     fun isImage(path: String) = path.substringAfterLast('.', "").lowercase(java.util.Locale.ROOT) in extensions
 
     fun parse(text: String): Map<Int, Reference> {

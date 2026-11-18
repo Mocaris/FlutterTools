@@ -1,5 +1,6 @@
 package com.mocaris.plugin.flutter.tools.dependencies.ui.search
 
+import com.mocaris.plugin.flutter.tools.core.ui.ContentScrollPane
 import com.intellij.ide.BrowserUtil
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
@@ -50,13 +51,12 @@ class PackageSearchPanel(private val project: Project) : JPanel(BorderLayout(0, 
     private val renderer = PackageSearchRenderer(::displayedInfo, { scores[it] }, { it in infoFailures })
     private fun textArea(rows: Int) = ResultTextArea().apply {
         this.rows = rows
-        margin = JBUI.insets(6, 12)
         font = UIUtil.getLabelFont()
         addPropertyChangeListener("UI") { font = UIUtil.getLabelFont() }
     }
     private val sdkSummary = textArea(4)
     private val notice = textArea(3)
-    private val noticeScroll = JBScrollPane(notice).apply { border = JBUI.Borders.empty() }
+    private val noticeScroll = ContentScrollPane(notice)
     private val status = textArea(1).localized("search.ready")
     private val target = JBLabel()
     private val section = JComboBox(arrayOf("dependencies", "dev_dependencies"))
@@ -116,15 +116,15 @@ class PackageSearchPanel(private val project: Project) : JPanel(BorderLayout(0, 
         })
         section.addActionListener { refresh() }
         add(JPanel(BorderLayout(0, 8)).apply {
-            add(JBScrollPane(results), BorderLayout.CENTER)
+            add(ContentScrollPane(results), BorderLayout.CENTER)
             add(JPanel().apply {
                 layout = BoxLayout(this, BoxLayout.Y_AXIS)
                 add(JPanel(FlowLayout(FlowLayout.LEFT, 8, 4)).apply { add(more); add(retry); add(recommend) })
                 add(JPanel(BorderLayout(0, 6)).apply {
                     border = JBUI.Borders.customLine(JBColor.border(), 1, 0, 0, 0)
                     add(JPanel(BorderLayout()).apply {
-                        add(JBScrollPane(sdkSummary).apply { border = JBUI.Borders.empty() }, BorderLayout.NORTH)
-                        add(JBScrollPane(recommendation).apply { border = JBUI.Borders.empty() }, BorderLayout.CENTER)
+                        add(ContentScrollPane(sdkSummary), BorderLayout.NORTH)
+                        add(ContentScrollPane(recommendation), BorderLayout.CENTER)
                     }, BorderLayout.NORTH)
                     add(noticeScroll, BorderLayout.CENTER)
                     add(JPanel().apply {
@@ -135,10 +135,7 @@ class PackageSearchPanel(private val project: Project) : JPanel(BorderLayout(0, 
                 })
             }, BorderLayout.SOUTH)
         }, BorderLayout.CENTER)
-        add(JBScrollPane(status).apply {
-            border = JBUI.Borders.empty()
-            viewportBorder = JBUI.Borders.empty()
-        }, BorderLayout.SOUTH)
+        add(ContentScrollPane(status), BorderLayout.SOUTH)
         refresh()
     }
 

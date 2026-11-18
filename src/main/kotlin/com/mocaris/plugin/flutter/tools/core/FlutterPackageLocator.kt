@@ -33,13 +33,21 @@ object FlutterPackageLocator {
         val roots = ProjectRootManager.getInstance(project).contentRoots.toMutableList()
         project.basePath?.let { LocalFileSystem.getInstance().findFileByPath(it) }?.let { roots.add(it) }
         val packages = linkedMapOf<String, VirtualFile>()
-        roots.distinctBy { it.path }.forEach { root ->
+        val owners = linkedMapOf<String, Pair<VirtualFile, WorkspaceLayout.Rules>>()
+        roots.map { WorkspaceLayout.owner(it)?.first ?: it }.distinctBy { it.path }.forEach { root ->
             VfsUtilCore.iterateChildrenRecursively(root, { !it.isDirectory || it.name !in excluded && !java.nio.file.Files.isSymbolicLink(java.nio.file.Path.of(it.path)) }) { file ->
+                if (file.isDirectory && (file.findChild("pubspec.yaml") != null || file.findChild("melos.yaml") != null)) {
+                    WorkspaceLayout.rules(file)?.let { owners[file.path] = file to it }
+                }
                 if (!file.isDirectory && file.name == "pubspec.yaml") packages[file.parent.path] = file.parent
                 true
             }
         }
-        return packages.values.sortedBy { it.path }
+        return packages.values.filter { candidate ->
+            val enclosing = owners.values.filter { candidate.path == it.first.path || candidate.path.startsWith("${it.first.path}/") }
+            enclosing.none { it.second.excludes(candidate.path.removePrefix(it.first.path).trimStart('/')) } &&
+                (enclosing.isEmpty() || enclosing.any { it.second.includes(candidate.path.removePrefix(it.first.path).trimStart('/')) })
+        }.sortedBy { it.path }
     }
 
     fun choosePackage(project: Project, candidates: List<VirtualFile>, file: VirtualFile?): VirtualFile? {

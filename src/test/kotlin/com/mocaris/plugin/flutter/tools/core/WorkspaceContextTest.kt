@@ -98,6 +98,24 @@ class WorkspaceContextTest : YamlPsiTest() {
         assertEquals(member.resolve(".dart_tool/package_config.json"), DartPackageContext.packageConfig(member))
     }
 
+    @Test fun nestedWorkspacesShareTheOutermostResolutionContext() {
+        setupWorkspace()
+        write(workspace.resolve("pubspec.yaml"), "name: workspace\nworkspace: [packages/app, packages/server]\n")
+        val server = workspace.resolve("packages/server")
+        val auth = server.resolve("auth")
+        write(server.resolve("pubspec.yaml"), "name: server\nresolution: workspace\nworkspace: [auth]\n")
+        write(auth.resolve("pubspec.yaml"), "name: auth\nresolution: workspace\n")
+        assertEquals(workspace, DartPackageContext.root(auth))
+        assertEquals(config, DartPackageContext.packageConfig(auth))
+        val rootDirectory = Directory(workspace)
+        rootDirectory.children["pubspec.yaml"] = file(workspace.resolve("pubspec.yaml"))
+        val serverDirectory = Directory(server, rootDirectory)
+        serverDirectory.children["pubspec.yaml"] = file(server.resolve("pubspec.yaml"))
+        val authDirectory = Directory(auth, serverDirectory)
+        authDirectory.children["pubspec.yaml"] = file(auth.resolve("pubspec.yaml"))
+        assertEquals(rootDirectory, DartPackageContext.root(authDirectory))
+    }
+
     @Test fun sharedMetadataInvalidatesMembersAndResolvedImages() {
         setupWorkspace()
         val request = ImageRequest(member.toString(), "app", "packages/icons/logo.png")

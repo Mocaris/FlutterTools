@@ -38,7 +38,8 @@ object DependencyAdder {
             val first = mapping.keyValues.first()
             val indent = source.substring(source.lastIndexOf('\n', first.textOffset - 1) + 1, first.textOffset)
             val offset = source.indexOf('\n', mapping.textRange.endOffset).takeIf { it >= 0 } ?: source.length
-            return source.replaceRange(offset, offset, "\n" + field.lineSequence().joinToString("\n") { indent + it })
+            val separator = if (mapping === top) "\n\n" else "\n"
+            return source.replaceRange(offset, offset, separator + field.lineSequence().joinToString("\n") { indent + it })
         }
         val key = top.getKeyValueByKey(section)
         val result = when (val mapping = key?.value) {

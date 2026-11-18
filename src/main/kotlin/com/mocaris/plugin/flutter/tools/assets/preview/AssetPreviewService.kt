@@ -96,7 +96,7 @@ class AssetPreviewService(private val project: Project) : Disposable {
     private fun load(request: ImageRequest, width: Int, height: Int): AssetImageLoader.Loaded {
         var location: AssetImageLoader.Location? = null
         return try {
-            location = AssetImageLoader.resolve(request, resolver(request))
+            location = location(request)
             val file = location.file
             if (file == null) AssetImageLoader.Loaded(AssetImageLoader.Info(null, status = AssetImageLoader.Status.MISSING, logicalFile = location.logical))
             else AssetImageLoader.read(file, width, height).let { it.copy(info = it.info.copy(logicalFile = location.logical)) }
@@ -106,6 +106,8 @@ class AssetPreviewService(private val project: Project) : Disposable {
             AssetImageLoader.Loaded(AssetImageLoader.Info(location?.file, status = AssetImageLoader.Status.FAILED, logicalFile = location?.logical))
         }
     }
+
+    internal fun location(request: ImageRequest) = AssetImageLoader.resolve(request, resolver(request))
 
     internal fun isEnabled() = enabled
     internal fun fileIcon(request: ImageRequest) = FileTypeManager.getInstance().getFileTypeByFileName(request.path.substringAfterLast('/')).icon ?: FlutterToolsIcons.assetImage

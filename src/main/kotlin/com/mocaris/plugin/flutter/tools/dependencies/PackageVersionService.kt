@@ -79,6 +79,7 @@ class PackageVersionService(private val project: Project) : Disposable {
         EditorFactory.getInstance().eventMulticaster.addDocumentListener(object : DocumentListener {
             override fun documentChanged(event: DocumentEvent) {
                 val file = FileDocumentManager.getInstance().getFile(event.document) ?: return
+                if (com.mocaris.plugin.flutter.tools.core.WorkspaceLayout.configurationChanged(event)) discover()
                 if (file.name in watchedNames) {
                     val targets = roots.filter { DartPackageContext.metadataAffected(java.nio.file.Path.of(it.path), java.nio.file.Path.of(file.path)) } +
                         listOfNotNull(containingOwned(file))
@@ -299,7 +300,7 @@ class PackageVersionService(private val project: Project) : Disposable {
         if (revisions[root.path]?.get() != revision || project.isDisposed) return
         states[root.path] = state
         ApplicationManager.getApplication().invokeLater {
-            if (!project.isDisposed && revisions[root.path]?.get() == revision) {
+            if (!project.isDisposed && root.isValid && revisions[root.path]?.get() == revision) {
                 val file = root.findChild("pubspec.yaml") ?: return@invokeLater
                 FileDocumentManager.getInstance().getCachedDocument(file)?.let { document ->
                     EditorFactory.getInstance().getEditors(document, project).filterNot { it.isDisposed }

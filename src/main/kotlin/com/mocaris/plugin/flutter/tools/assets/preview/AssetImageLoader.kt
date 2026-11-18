@@ -2,6 +2,7 @@ package com.mocaris.plugin.flutter.tools.assets.preview
 
 import com.mocaris.plugin.flutter.tools.assets.MUT_PATTERN
 import com.mocaris.plugin.flutter.tools.assets.PubspecAssets
+import com.twelvemonkeys.imageio.plugins.webp.WebPImageReaderSpi
 import java.awt.RenderingHints
 import java.awt.image.BufferedImage
 import java.nio.file.Files
@@ -48,18 +49,25 @@ internal object AssetImageLoader {
         val bytes = Files.size(file)
         if (bytes > MAX_BYTES) return Loaded(Info(file, bytes = bytes, status = Status.TOO_LARGE))
         FileImageInputStream(file.toFile()).use { stream ->
-            val readers = ImageIO.getImageReaders(stream)
-            if (!readers.hasNext()) return Loaded(Info(file, bytes = bytes, status = Status.UNSUPPORTED))
-            val reader = readers.next()
+            // Instantiate locally: a global ImageIO registration would retain the plugin classloader.
+            val reader = if (file.fileName.toString().endsWith(".webp", true)) {
+                val provider = WebPImageReaderSpi()
+                if (!provider.canDecodeInput(stream)) return Loaded(Info(file, bytes = bytes, status = Status.UNSUPPORTED))
+                provider.createReaderInstance()
+            } else {
+                val readers = ImageIO.getImageReaders(stream)
+                if (!readers.hasNext()) return Loaded(Info(file, bytes = bytes, status = Status.UNSUPPORTED))
+                readers.next()
+            }
             try {
                 reader.addIIOReadProgressListener(cancellation)
                 reader.setInput(stream, true, true)
                 val format = reader.formatName.lowercase(java.util.Locale.ROOT)
-                if (format !in setOf("png", "jpg", "jpeg", "gif", "bmp")) return Loaded(Info(file, bytes = bytes, status = Status.UNSUPPORTED))
+                if (format !in setOf("png", "jpg", "jpeg", "gif", "bmp", "webp")) return Loaded(Info(file, bytes = bytes, status = Status.UNSUPPORTED))
                 val width = reader.getWidth(0); val height = reader.getHeight(0)
                 val info = Info(file, width, height, bytes, Status.READY)
-                // GIF/BMP readers may allocate an entire frame internally; use a tighter limit for them.
-                val budget = if (format in setOf("gif", "bmp")) 4_000_000L else MAX_PIXELS
+                // These readers can allocate a full frame internally, even with subsampling.
+                val budget = if (format in setOf("gif", "bmp", "webp")) 4_000_000L else MAX_PIXELS
                 if (width <= 0 || height <= 0 || width > 32768 || height > 32768 || width.toLong() * height > budget) {
                     return Loaded(info.copy(status = Status.TOO_LARGE))
                 }

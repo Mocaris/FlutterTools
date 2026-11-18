@@ -20,6 +20,7 @@ repositories {
 // Read more: https://plugins.jetbrains.com/docs/intellij/tools-intellij-platform-gradle-plugin.html
 dependencies {
     implementation("org.yaml:snakeyaml:2.2")
+    implementation("com.twelvemonkeys.imageio:imageio-webp:3.12.0")
     testImplementation("junit:junit:4.13.2")
     intellijPlatform {
         val localIdePath = providers.gradleProperty("localIdePath").orNull

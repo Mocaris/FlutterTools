@@ -1,5 +1,6 @@
 package com.mocaris.plugin.flutter.tools.dependencies.ui
 
+import com.mocaris.plugin.flutter.tools.core.ui.ContentScrollPane
 import com.intellij.ide.BrowserUtil
 import com.intellij.openapi.components.service
 import com.intellij.openapi.project.Project
@@ -57,8 +58,8 @@ class DependenciesPanel(private val project: Project) : JPanel(BorderLayout(0, 8
                 if (table.columnAtPoint(event.point) in listOf(4, 5)) root?.let { DependencyUpdatePopup.show(project, it, result, event) }
             }
         })
-        add(JBScrollPane(table), BorderLayout.CENTER)
-        add(JBScrollPane(status), BorderLayout.SOUTH)
+        add(ContentScrollPane(table), BorderLayout.CENTER)
+        add(ContentScrollPane(status), BorderLayout.SOUTH)
     }
     fun updateLanguage() {
         FlutterToolsBundle.update(this)

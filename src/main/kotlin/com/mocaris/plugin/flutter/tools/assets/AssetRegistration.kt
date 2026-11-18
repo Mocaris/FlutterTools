@@ -84,7 +84,8 @@ internal object AssetRegistration {
             }
             val prefix = indent(mapping.keyValues.first().textOffset)
             val offset = lineEnd(mapping.textRange.endOffset)
-            return source.replaceRange(offset, offset, "\n" + text.lineSequence().joinToString("\n") { prefix + it })
+            val separator = if (mapping === top) "\n\n" else "\n"
+            return source.replaceRange(offset, offset, separator + text.lineSequence().joinToString("\n") { prefix + it })
         }
         fun block() = "assets:\n" + values.joinToString("\n") { "  - $it" }
         val flutterKey = top.getKeyValueByKey("flutter")

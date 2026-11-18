@@ -14,13 +14,13 @@ object DartPackageContext {
     }
 
     private fun <T> context(root: T, parent: (T) -> T?, property: (T, String) -> Any?): T {
-        if (property(root, "resolution") != "workspace") return root
-        var ancestor = parent(root)
-        while (ancestor != null) {
-            if (property(ancestor, "workspace") is List<*>) return ancestor
-            ancestor = parent(ancestor)
+        var current = root
+        while (property(current, "resolution") == "workspace") {
+            var ancestor = parent(current)
+            while (ancestor != null && property(ancestor, "workspace") !is List<*>) ancestor = parent(ancestor)
+            current = ancestor ?: return current
         }
-        return root
+        return current
     }
 
     fun root(root: Path): Path = context(root.toAbsolutePath().normalize(), { it.parent }) { directory, key ->

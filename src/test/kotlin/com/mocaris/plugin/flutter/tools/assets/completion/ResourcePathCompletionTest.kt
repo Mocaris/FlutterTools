@@ -20,7 +20,7 @@ import org.junit.Test
 import java.nio.file.Files
 
 class ResourcePathCompletionTest : LightPlatformCodeInsightFixture4TestCase() {
-    private fun resourceProject(source: String, action: (VirtualFile) -> Unit) {
+    private fun resourceProject(source: String, warmIndex: Boolean = true, action: (VirtualFile) -> Unit) {
         Assume.assumeTrue(java.lang.Boolean.getBoolean("fluttertools.test.dart"))
         val path = Files.createTempDirectory("fluttertools-resource-")
         VfsRootAccess.allowRootAccess(testRootDisposable, path.toString(), path.toRealPath().toString())
@@ -39,9 +39,61 @@ class ResourcePathCompletionTest : LightPlatformCodeInsightFixture4TestCase() {
             project.service<FlutterToolsSettings>().state.assetImagePreviews = true
             project.service<AssetPreviewService>().preferencesChanged(true)
             val service = project.service<ResourceCompletionService>()
-            PlatformTestUtil.waitWithEventsDispatching("resource index", { service.snapshot(root) != null }, 5)
+            if (warmIndex) PlatformTestUtil.waitWithEventsDispatching("resource index", { service.snapshot(root) != null }, 5)
             action(root)
         } finally { path.toFile().deleteRecursively() }
+    }
+
+    @Test fun resourceNavigationWorksOnFirstClickWithPreviewsDisabled() {
+        resourceProject("final path = r'assets/notes.tx<caret>t';", warmIndex = false) { root ->
+            project.service<FlutterToolsSettings>().state.assetImagePreviews = false
+            val previews = project.service<AssetPreviewService>()
+            previews.preferencesChanged(false)
+            val offset = myFixture.editor.caretModel.offset
+            val targets = com.intellij.codeInsight.navigation.actions.GotoDeclarationAction.findAllTargetElements(project, myFixture.editor, offset)!!
+            assertEquals(root.path + "/assets/notes.txt", (targets.single() as com.intellij.psi.PsiFile).virtualFile.path)
+            assertEquals(0, previews.pendingRequests())
+        }
+    }
+
+    @Test fun resourceNavigationResolvesLogicalVariantsAndRejectsUnrelatedStrings() {
+        resourceProject("final path = 'assets/logo.p<caret>ng';") { root ->
+            WriteCommandAction.runWriteCommandAction(project) {
+                root.findChild("assets")!!.createChildDirectory(this, "2.0x").createChildData(this, "logo.png")
+                    .setBinaryContent(byteArrayOf(1))
+            }
+            val offset = myFixture.editor.caretModel.offset
+            val targets = ResourceNavigationHandler().getGotoDeclarationTargets(myFixture.file.findElementAt(offset), offset, myFixture.editor)!!
+            assertEquals(root.path + "/assets/2.0x/logo.png", (targets.single() as com.intellij.psi.PsiFile).virtualFile.path)
+        }
+        for (source in listOf("import 'assets/no<caret>tes.txt';", "final path = 'other/no<caret>tes.txt';", "final path = 'assets/${'$'}na<caret>me';")) {
+            resourceProject(source) {
+                val offset = myFixture.editor.caretModel.offset
+                assertNull(ResourceNavigationHandler().getGotoDeclarationTargets(myFixture.file.findElementAt(offset), offset, myFixture.editor))
+            }
+        }
+    }
+
+    @Test fun navigationUsesSharedWorkspacePackageConfigurationForWebpResources() {
+        resourceProject("void main() {}", warmIndex = false) { root ->
+            WriteCommandAction.runWriteCommandAction(project) {
+                root.findChild("pubspec.yaml")!!.setBinaryContent("name: workspace\nworkspace: [packages/app, packages/icons]\n".toByteArray())
+                val packages = root.createChildDirectory(this, "packages")
+                val app = packages.createChildDirectory(this, "app")
+                app.createChildData(this, "pubspec.yaml").setBinaryContent("name: app\nresolution: workspace\nflutter:\n  assets: [packages/icons/images/logo.webp]\n".toByteArray())
+                app.createChildData(this, "main.dart").setBinaryContent("final path = 'packages/icons/images/logo.webp';".toByteArray())
+                val icons = packages.createChildDirectory(this, "icons")
+                icons.createChildData(this, "pubspec.yaml").setBinaryContent("name: icons\nresolution: workspace\n".toByteArray())
+                val target = icons.createChildDirectory(this, "lib").createChildDirectory(this, "images").createChildData(this, "logo.webp")
+                javaClass.getResourceAsStream("/images/lossless.webp")!!.use { target.setBinaryContent(it.readBytes()) }
+                root.createChildDirectory(this, ".dart_tool").createChildData(this, "package_config.json").setBinaryContent(
+                    """{"packages":[{"name":"icons","rootUri":"../packages/icons/","packageUri":"lib/"}]}""".toByteArray())
+            }
+            myFixture.configureFromExistingVirtualFile(root.findFileByRelativePath("packages/app/main.dart")!!)
+            val offset = myFixture.file.text.indexOf("logo.webp") + 2
+            val targets = ResourceNavigationHandler().getGotoDeclarationTargets(myFixture.file.findElementAt(offset), offset, myFixture.editor)!!
+            assertEquals(root.path + "/packages/icons/lib/images/logo.webp", (targets.single() as com.intellij.psi.PsiFile).virtualFile.path)
+        }
     }
 
     @Test fun enterReplacesWholePathAndPreservesQuotesAndSurroundingCode() {
