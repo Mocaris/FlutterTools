@@ -101,6 +101,8 @@ class AssetsSyncService(private val project: Project) : BulkFileListener, Dispos
         config: AssetsSyncConfig, contents: Map<Path, String>, manual: Boolean,
     ) {
         val prepared = AssetsOutputWriter.prepare(contents)
+        var obsolete = emptySet<Path>()
+        var published = false
         try {
             currentCoroutineContext().ensureActive()
             ApplicationManager.getApplication().invokeAndWait {
@@ -115,25 +117,25 @@ class AssetsSyncService(private val project: Project) : BulkFileListener, Dispos
                     val expected = AssetsGenerator.outputPaths(Path.of(root.path), config).values.toSet() +
                         setOf(AssetsGenerator.validateOutput(Path.of(root.path), config.outPath))
                     requireLocalized(expected == contents.keys, "error.outputChanged")
-                    val obsolete = AssetsGenerator.legacyOutputPaths(Path.of(root.path), config)
+                    obsolete = AssetsGenerator.legacyOutputPaths(Path.of(root.path), config)
                     val documents = FileDocumentManager.getInstance()
                     (contents.keys + obsolete).forEach { output ->
                         val file = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(output.toFile())
                         val document = file?.let { documents.getCachedDocument(it) }
                         requireLocalized(document == null || !documents.isDocumentUnsaved(document), "error.outputUnsaved", output)
                     }
-                    try {
-                        AssetsOutputWriter.publish(contents, prepared, obsolete)
-                    } finally {
-                        (contents.keys + obsolete).forEach { output ->
-                            LocalFileSystem.getInstance().refreshAndFindFileByIoFile(output.toFile())?.refresh(false, false)
-                        }
-                    }
+                    AssetsOutputWriter.publish(contents, prepared, obsolete)
                 }
+                published = true
+            }
+        } finally { AssetsOutputVfs.finish(prepared, contents.keys + obsolete) }
+        if (published) {
+            ApplicationManager.getApplication().invokeAndWait {
+                if (project.isDisposed || !root.isValid) return@invokeAndWait
                 statuses[root.path] = text("assets.generated", config.outPath)
                 if (manual) FlutterToolsNotifications.notify(project, statuses[root.path]!!.toString(), NotificationType.INFORMATION)
             }
-        } finally { AssetsOutputWriter.cleanup(prepared) }
+        }
     }
 
     fun generate(root: VirtualFile) { requests.trySend(Request(manualRoot = root)) }
