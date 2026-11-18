@@ -40,6 +40,29 @@ class SvgPreviewLoaderTest {
         assertEquals(32, result.image!!.width)
         assertTrue(result.image.getRGB(10, 5).ushr(24) > 0)
     }
+    @Test fun gradientsAndClippingKeepTheirRenderedColorsAndTransparency() {
+        val result = read("""<svg xmlns="http://www.w3.org/2000/svg" width="64" height="32">
+          <defs><linearGradient id="g"><stop stop-color="red"/><stop offset="1" stop-color="blue"/></linearGradient>
+          <clipPath id="clip"><rect width="64" height="16"/></clipPath></defs>
+          <rect width="64" height="32" fill="url(#g)" clip-path="url(#clip)"/>
+        </svg>""")
+        assertEquals(AssetImageLoader.Status.READY, result.info.status)
+        val image = result.image!!
+        val left = java.awt.Color(image.getRGB(2, 2), true)
+        val right = java.awt.Color(image.getRGB(29, 2), true)
+        assertEquals(255, left.alpha); assertEquals(255, right.alpha)
+        assertTrue(left.red > right.red); assertTrue(left.blue < right.blue)
+        assertEquals(0, image.getRGB(16, 14).ushr(24))
+    }
+    @Test fun cssAndTranslatedViewBoxRenderWithoutUpscalingSmallImages() {
+        val result = read("""<svg xmlns="http://www.w3.org/2000/svg" width="20" height="10" viewBox="10 20 20 10">
+          <style>.shape { fill: #00ff00; }</style>
+          <path class="shape" d="M10 20 H30 V30 H10 Z"/>
+        </svg>""")
+        assertEquals(AssetImageLoader.Status.READY, result.info.status)
+        assertEquals(20, result.image!!.width); assertEquals(10, result.image.height)
+        assertEquals(0xff00ff00.toInt(), result.image.getRGB(10, 5))
+    }
     @Test fun cyclicReferencesExternalImagesAndComplexDocumentsUseFallback() {
         val cyclic = """<svg xmlns="http://www.w3.org/2000/svg"><defs><g id="a"><use href="#a"/></g></defs><use href="#a"/></svg>"""
         assertNull(read(cyclic).image)

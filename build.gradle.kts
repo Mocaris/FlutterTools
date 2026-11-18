@@ -1,9 +1,11 @@
 import org.jetbrains.changelog.markdownToHTML
+import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 plugins {
     id("java")
     id("org.jetbrains.kotlin.jvm") version "2.1.0"
     id("org.jetbrains.intellij.platform") version "2.7.1"
     id("org.jetbrains.changelog") version "2.2.1"
+    id("com.gradleup.shadow") version "8.3.8"
 }
 
 group = "org.mocaris.plugin"
@@ -18,7 +20,19 @@ repositories {
 
 // Configure IntelliJ Platform Gradle Plugin
 // Read more: https://plugins.jetbrains.com/docs/intellij/tools-intellij-platform-gradle-plugin.html
+val svgRenderer by configurations.creating
+// Newer IDEs also bundle JSVG. Keep our renderer in a separate, relocated runtime jar.
+val svgRendererJar by tasks.registering(ShadowJar::class) {
+    configurations = listOf(svgRenderer)
+    archiveBaseName.set("flutter-tools-svg")
+    archiveVersion.set("2.2.0")
+    archiveClassifier.set("")
+    relocate("com.github.weisj.jsvg", "com.mocaris.plugin.flutter.tools.internal.svg")
+}
+
 dependencies {
+    svgRenderer("com.github.weisj:jsvg:2.2.0")
+    implementation(files(svgRendererJar))
     implementation("org.yaml:snakeyaml:2.2")
     implementation("com.twelvemonkeys.imageio:imageio-webp:3.12.0")
     testImplementation("junit:junit:4.13.2")

@@ -250,6 +250,8 @@ Tabs load lazily in the background and share the configured pub cache lifetime. 
 
 Use JDK 17 to run `./gradlew test buildPlugin`. The default target is IntelliJ IDEA Community 2023.1 (build 231), and the plugin uses Java 17 bytecode. Build release archives against this baseline to preserve compatibility with older IDEs. Hint refresh resolves the legacy or relocated hint pass factory at runtime, including Android Studio 2026.1.3 Patch 1. Tests use the SDK's bundled `testFramework.jar`, avoiding separate test-framework artifact downloads. The first build still needs the IDE SDK and normal Gradle dependencies. Use `./gradlew runIde` for tool-window, navigation and file-watcher integration checks in a sandbox IDE.
 
+SVG previews use the public API of bundled JSVG 2.2.0. Shadow relocates this dependency into the plugin's own namespace to avoid conflicts with copies included in newer IDEs; release archives do not call the internal IntelliJ `SVGLoader` API. The renderer remains subject to the existing preview size and complexity limits and cannot load external resources.
+
 Run `./gradlew verifyPlugin` to check binary compatibility against representative 2023, 2024, 2025 and 2026 platforms. To verify against installed IDEs, pass a semicolon-separated list of IDE home directories in `-PverificationIdePaths`; this selects verification targets without changing the compilation baseline. For example:
 
 ```sh

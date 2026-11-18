@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Replace internal IntelliJ SVGLoader usage with a bundled, relocated JSVG renderer. Preserve bounded SVG thumbnails/popups, transparency, gradients and internal references without depending on the IDE's private SVG API.
 - Support WebP resource recognition and bounded previews, Ctrl/Cmd navigation from Dart resource strings, native Pub workspace/Melos membership and a Melos panel after Project Settings with in-place Workspace/Melos conversion, Bootstrap/Clean and script execution with Run-window output and cancellation.
 - Include subdirectories and descendant files in resource path completion, continue browsing after selecting a folder, and use a 100 ms throttle. Anchor generated resource preview icons on the path string line.
 - Complete pubspec resource paths inside Dart strings with thumbnails/file icons and file sizes. Share the default-on Resource previews switch across completion lists, string gutters and generated resources; use lazy, bounded loading.

@@ -1,11 +1,20 @@
 package com.mocaris.plugin.flutter.tools.assets.preview
 
-import com.intellij.util.SVGLoader
+import com.intellij.ui.paint.PaintUtil
+import com.intellij.ui.scale.ScaleContext
+import com.intellij.util.ui.ImageUtil
+import com.mocaris.plugin.flutter.tools.internal.svg.parser.DocumentLimits
+import com.mocaris.plugin.flutter.tools.internal.svg.parser.LoaderContext
+import com.mocaris.plugin.flutter.tools.internal.svg.parser.SVGLoader
+import com.mocaris.plugin.flutter.tools.internal.svg.parser.resources.ResourcePolicy
+import com.mocaris.plugin.flutter.tools.internal.svg.view.ViewBox
 import org.w3c.dom.Element
 import org.xml.sax.SAXParseException
 import org.xml.sax.helpers.DefaultHandler
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
+import java.awt.RenderingHints
+import java.awt.image.BufferedImage
 import java.nio.file.Files
 import java.nio.file.Path
 import javax.xml.XMLConstants
@@ -22,6 +31,10 @@ internal object SvgPreviewLoader {
     private val dimension = Regex("\\s*(${number.pattern})\\s*(px|pt|pc|in|cm|mm|q)?\\s*", RegexOption.IGNORE_CASE)
     private val urls = Regex("url\\s*\\(([^)]*)\\)", RegexOption.IGNORE_CASE)
     private val blocked = setOf("image", "filter", "mask", "pattern", "foreignObject", "script", "animate", "animateTransform", "animateMotion", "set")
+    private val loaderContext = LoaderContext.builder()
+        .externalResourcePolicy(ResourcePolicy.DENY_ALL)
+        .documentLimits(DocumentLimits(64, 64, 2048))
+        .build()
 
     fun read(file: Path, maxWidth: Int, maxHeight: Int): AssetImageLoader.Loaded {
         val bytes = Files.newInputStream(file).use { it.readNBytes(MAX_BYTES + 1) }
@@ -90,8 +103,10 @@ internal object SvgPreviewLoader {
         val height = pixels(root.getAttribute("height")) ?: viewBox?.get(3) ?: 150.0
         if (!width.isFinite() || !height.isFinite() || width <= 0 || height <= 0 || width > 1e9 || height > 1e9) return reject(AssetImageLoader.Status.TOO_LARGE)
         val scale = minOf(maxWidth / width, maxHeight / height, 1.0)
-        root.setAttribute("width", maxOf(1, (width * scale).roundToInt()).toString())
-        root.setAttribute("height", maxOf(1, (height * scale).roundToInt()).toString())
+        val targetWidth = maxOf(1, (width * scale).roundToInt())
+        val targetHeight = maxOf(1, (height * scale).roundToInt())
+        root.setAttribute("width", targetWidth.toString())
+        root.setAttribute("height", targetHeight.toString())
         if (viewBox == null) root.setAttribute("viewBox", "0 0 $width $height")
         // CSS root dimensions can override the bounded viewport; leave such files to the image editor.
         val cssDimensions = Regex("(?i)(?:^|[;{])\\s*(?:width|height)\\s*:")
@@ -102,7 +117,22 @@ internal object SvgPreviewLoader {
             setAttribute(XMLConstants.ACCESS_EXTERNAL_STYLESHEET, "")
         }.newTransformer().transform(DOMSource(document), StreamResult(output))
         if (Thread.currentThread().isInterrupted) throw InterruptedException()
-        val image = SVGLoader.load(null, ByteArrayInputStream(output.toByteArray()), 1f)
+        // Use the bundled renderer's public API; the platform's SVGLoader is internal.
+        val svg = SVGLoader().load(ByteArrayInputStream(output.toByteArray()), null, loaderContext)
+            ?: return reject(AssetImageLoader.Status.FAILED)
+        if (Thread.currentThread().isInterrupted) throw InterruptedException()
+        // Cache limits count physical pixels, so screen HiDPI scaling must not enlarge this bitmap.
+        val image = ImageUtil.createImage(ScaleContext.createIdentity(), targetWidth.toDouble(), targetHeight.toDouble(),
+            BufferedImage.TYPE_INT_ARGB, PaintUtil.RoundingMode.ROUND)
+        val graphics = image.createGraphics()
+        try {
+            graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+            graphics.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY)
+            svg.render(null, graphics, ViewBox(targetWidth.toFloat(), targetHeight.toFloat()))
+        } catch (e: Exception) {
+            image.flush()
+            throw e
+        } finally { graphics.dispose() }
         if (Thread.currentThread().isInterrupted) { image.flush(); throw InterruptedException() }
         if (image.width > maxWidth || image.height > maxHeight) { image.flush(); return reject(AssetImageLoader.Status.TOO_LARGE) }
         return AssetImageLoader.Loaded(AssetImageLoader.Info(file, width.roundToInt(), height.roundToInt(), bytes.size.toLong(), AssetImageLoader.Status.READY), image)
