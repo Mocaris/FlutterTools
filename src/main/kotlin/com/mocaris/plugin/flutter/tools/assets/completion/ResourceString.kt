@@ -2,19 +2,43 @@ package com.mocaris.plugin.flutter.tools.assets.completion
 
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
-import com.mocaris.plugin.flutter.tools.assets.preview.GeneratedAssetReferences
 
 /** Use Dart's PSI to exclude comments/directives without depending on Dart implementation classes. */
 internal data class ResourceString(val start: Int, val end: Int, val value: String, val raw: Boolean, val quote: Char, val content: String) {
     fun prefix(offset: Int): String? {
         val prefix = content.take((offset - start).coerceIn(0, content.length))
-        return if (raw) prefix else GeneratedAssetReferences.stringValue("$quote$prefix$quote")
+        return if (raw) prefix else stringValue("$quote$prefix$quote")
     }
     fun encode(path: String) = if (raw) path.takeUnless { quote in it } else buildString {
         path.forEach { if (it == quote || it == '\\' || it == '$') append('\\'); append(it) }
     }
 
     companion object {
+        internal fun stringValue(literal: String): String? {
+            if (literal.length > 16390) return null
+            val result = StringBuilder()
+            var index = 1
+            while (index < literal.length - 1) {
+                val char = literal[index++]
+                if (char == '$' || char == '\n' || char == '\r') return null // Never evaluate Dart interpolation.
+                if (char != '\\') { result.append(char); continue }
+                if (index >= literal.length - 1) return null
+                val escaped = literal[index++]
+                result.append(when (escaped) {
+                    '\\', '\'', '"', '$' -> escaped
+                    'n' -> '\n'; 'r' -> '\r'; 't' -> '\t'; 'b' -> '\b'; 'f' -> '\u000C'; 'v' -> '\u000B'
+                    'x', 'u' -> {
+                        val count = if (escaped == 'x') 2 else 4
+                        if (index + count > literal.length - 1) return null
+                        val value = literal.substring(index, index + count).toIntOrNull(16) ?: return null
+                        index += count; value.toChar()
+                    }
+                    else -> return null
+                })
+            }
+            return result.toString()
+        }
+
         private val directives = setOf("IMPORT_STATEMENT", "EXPORT_STATEMENT", "PART_STATEMENT", "PART_OF_STATEMENT")
         fun find(file: PsiFile, offset: Int): ResourceString? {
             if (file.language.id != "Dart" || offset <= 0) return null
@@ -45,7 +69,7 @@ internal data class ResourceString(val start: Int, val end: Int, val value: Stri
             val end = if (closed) text.length - delimiter.length else text.length
             val content = text.substring(start, end)
             if ('\n' in content || '\r' in content) return null
-            val value = if (raw) content else GeneratedAssetReferences.stringValue("$quote$content$quote") ?: return null
+            val value = if (raw) content else stringValue("$quote$content$quote") ?: return null
             return ResourceString(offset + start, offset + end, value, raw, quote, content)
         }
     }

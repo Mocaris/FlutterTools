@@ -42,10 +42,10 @@ class WebpPreviewTest {
         val root = folder.root.toPath()
         Files.createDirectories(root.resolve("assets/2.0x"))
         Files.copy(image("lossless.webp"), root.resolve("assets/2.0x/logo.webp"))
-        assertTrue(GeneratedAssetReferences.isImage("assets/LOGO.WEBP"))
+        assertTrue(AssetImageLoader.isImage("assets/LOGO.WEBP"))
         assertEquals("assets/logo.webp", AssetRegistration.logicalPath("assets/2.0x/logo.webp"))
-        val outputs = AssetsGenerator.generate(root.toString(), AssetsSyncConfig(), "name: app\nflutter:\n  assets: [assets/logo.webp]\n")
-        assertEquals("assets/logo.webp", GeneratedAssetReferences.parse(outputs[root.resolve("lib/generate/assets.g.dart")]!!).values.single().path)
+        val outputs = AssetsGenerator.generate(root.toString(), AssetsSyncConfig(), "environment: {sdk: ^3.0.0}\nname: app\nflutter:\n  assets: [assets/logo.webp]\n")
+        assertTrue(outputs.getValue(root.resolve("lib/r.dart")).contains("path: \"assets/logo.webp\""))
         val request = ImageRequest(root.toString(), "app", "assets/logo.webp")
         assertEquals(root.resolve("assets/2.0x/logo.webp"), AssetImageLoader.resolve(request, com.mocaris.plugin.flutter.tools.assets.PubspecAssets.resolver(root)).file)
     }

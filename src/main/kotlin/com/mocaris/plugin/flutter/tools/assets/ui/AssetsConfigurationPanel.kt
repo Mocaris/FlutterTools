@@ -11,7 +11,6 @@ import com.intellij.util.ui.JBUI
 import com.mocaris.plugin.flutter.tools.assets.*
 import com.mocaris.plugin.flutter.tools.assets.config.AssetsConfigService
 import com.mocaris.plugin.flutter.tools.assets.config.AssetsSyncConfig
-import com.mocaris.plugin.flutter.tools.assets.config.DEFAULT_GENERATE_DIR
 import com.mocaris.plugin.flutter.tools.assets.config.DEFAULT_OUT_CLASS
 import com.mocaris.plugin.flutter.tools.assets.config.DEFAULT_OUT_PATH
 import com.mocaris.plugin.flutter.tools.assets.config.PUBSPEC_FILE_NAME
@@ -41,7 +40,6 @@ class AssetsConfigurationPanel(private val project: Project) : JBScrollPane() {
     private var pubspecText: String? = null
     private val exclusions = JBTextArea(3, 24)
     private val output = JBTextField(DEFAULT_OUT_PATH)
-    private val generateDir = JBTextField(DEFAULT_GENERATE_DIR)
     private val className = JBTextField(DEFAULT_OUT_CLASS)
     private val extension = JBCheckBox().localized("assets.extension")
     private val watch = JBCheckBox().localized("assets.watch")
@@ -73,9 +71,8 @@ class AssetsConfigurationPanel(private val project: Project) : JBScrollPane() {
         })
         exclusions.localizedTooltip("assets.exclusionsTip")
         output.localizedTooltip("assets.entryTip")
-        generateDir.localizedTooltip("assets.generateDirTip")
         val fields = JPanel(GridBagLayout())
-        listOf("assets.entry" to output, "assets.generateDir" to generateDir, "assets.class" to className).forEachIndexed { index, (key, field) ->
+        listOf("assets.entry" to output, "assets.class" to className).forEachIndexed { index, (key, field) ->
             fields.add(JBLabel().localized(key).apply { labelFor = field }, GridBagConstraints().apply {
                 gridx = 0; gridy = index; anchor = GridBagConstraints.WEST; insets = JBUI.insets(3, 0, 3, 8)
             })
@@ -98,7 +95,7 @@ class AssetsConfigurationPanel(private val project: Project) : JBScrollPane() {
         form.finish()
         setViewportView(form)
         val listener = object : DocumentAdapter() { override fun textChanged(event: DocumentEvent) { if (!loading) dirty = true } }
-        listOf(exclusions, output, generateDir, className).forEach { it.document.addDocumentListener(listener) }
+        listOf(exclusions, output, className).forEach { it.document.addDocumentListener(listener) }
         extension.addActionListener { if (!loading) dirty = true }
         watch.addActionListener { if (!loading) dirty = true }
     }
@@ -122,7 +119,6 @@ class AssetsConfigurationPanel(private val project: Project) : JBScrollPane() {
             val config = value.effectiveConfig
             exclusions.text = config.excluded.joinToString("\n")
             output.text = config.outPath; className.text = config.outClass
-            generateDir.text = config.generateDir
             extension.isSelected = config.outExtension; watch.isSelected = config.watcher
             if (value.config == null) source.localized("assets.newConfig") else source.localized("error.details", value.path.substringAfterLast('/'))
             dirty = false; status.localized("ready")
@@ -134,7 +130,7 @@ class AssetsConfigurationPanel(private val project: Project) : JBScrollPane() {
         val original = snapshot ?: run { showError(message("assets.fixConfig")); return false }
         return try {
             val config = AssetsSyncConfig(output.text.trim(), className.text.trim(), watch.isSelected, extension.isSelected,
-                exclusions.text.lineSequence().map { it.trim() }.filter { it.isNotEmpty() }.toSet(), generateDir.text.trim())
+                exclusions.text.lineSequence().map { it.trim() }.filter { it.isNotEmpty() }.toSet())
             configs.save(current, original, config)
             load(); status.localized("assets.saved"); true
         } catch (e: Exception) { showError(message("error.details", e)); false }

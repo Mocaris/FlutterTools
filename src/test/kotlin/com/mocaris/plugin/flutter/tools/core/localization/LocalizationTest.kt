@@ -149,7 +149,7 @@ class LocalizationTest {
         val root = folder.root.toPath()
         Files.createDirectories(root.resolve("assets"))
         Files.writeString(root.resolve("assets/logo.png"), "resource")
-        val yaml = "name: sample\nflutter:\n  assets: [assets/logo.png]\n"
+        val yaml = "environment: {sdk: ^3.0.0}\nname: sample\nflutter:\n  assets: [assets/logo.png]\n"
         val english = withIdeLocale(Locale.ENGLISH) { AssetsGenerator.generate(root.toString(), AssetsSyncConfig(), yaml) }
         val chinese = withIdeLocale(Locale.CHINESE) { AssetsGenerator.generate(root.toString(), AssetsSyncConfig(), yaml) }
         assertEquals(english, chinese)

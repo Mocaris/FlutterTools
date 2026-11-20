@@ -92,8 +92,8 @@ class AssetsSyncService(private val project: Project) : BulkFileListener, Dispos
                         val resources = PubspecAssets.resolve(Path.of(root.path), PubspecAssets.parse(pubspec))
                         watchedResources[root.path] = resources
                         statuses[root.path] = text("assets.generating")
-                        val contents = AssetsGenerator.generate(Path.of(root.path), config, resources)
-                        generatedOutputs[root.path] = contents.keys + AssetsGenerator.legacyOutputPaths(Path.of(root.path), config)
+                        val contents = AssetsGenerator.generate(Path.of(root.path), config, resources, pubspec)
+                        generatedOutputs[root.path] = contents.keys
                         ensureActive()
                         publish(root, snapshot, pubspec, config, contents, manual)
                     } catch (e: CancellationException) { throw e }
@@ -109,7 +109,6 @@ class AssetsSyncService(private val project: Project) : BulkFileListener, Dispos
         config: AssetsSyncConfig, contents: Map<Path, String>, manual: Boolean,
     ) {
         val prepared = AssetsOutputWriter.prepare(contents)
-        var obsolete = emptySet<Path>()
         var published = false
         try {
             currentCoroutineContext().ensureActive()
@@ -122,21 +121,19 @@ class AssetsSyncService(private val project: Project) : BulkFileListener, Dispos
                 }
                 ApplicationManager.getApplication().runWriteAction {
                     // Revalidate immediately before replacement, including paths changed during scanning.
-                    val expected = AssetsGenerator.outputPaths(Path.of(root.path), config).values.toSet() +
-                        setOf(AssetsGenerator.validateOutput(Path.of(root.path), config.outPath))
+                    val expected = AssetsGenerator.outputPaths(Path.of(root.path), config)
                     requireLocalized(expected == contents.keys, "error.outputChanged")
-                    obsolete = AssetsGenerator.legacyOutputPaths(Path.of(root.path), config)
                     val documents = FileDocumentManager.getInstance()
-                    (contents.keys + obsolete).forEach { output ->
+                    contents.keys.forEach { output ->
                         val file = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(output.toFile())
                         val document = file?.let { documents.getCachedDocument(it) }
                         requireLocalized(document == null || !documents.isDocumentUnsaved(document), "error.outputUnsaved", output)
                     }
-                    AssetsOutputWriter.publish(contents, prepared, obsolete)
+                    AssetsOutputWriter.publish(contents, prepared)
                 }
                 published = true
             }
-        } finally { AssetsOutputVfs.finish(prepared, contents.keys + obsolete) }
+        } finally { AssetsOutputVfs.finish(prepared, contents.keys) }
         if (published) {
             ApplicationManager.getApplication().invokeAndWait {
                 if (project.isDisposed || !root.isValid) return@invokeAndWait

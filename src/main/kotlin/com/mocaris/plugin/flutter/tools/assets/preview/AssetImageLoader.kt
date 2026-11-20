@@ -17,9 +17,12 @@ internal data class ImageRequest(val root: String, val packageName: String, val 
 }
 
 internal object AssetImageLoader {
+    private val extensions = setOf("png", "jpg", "jpeg", "gif", "bmp", "svg", "webp")
+    fun isImage(path: String) = path.substringAfterLast('.', "").lowercase(java.util.Locale.ROOT) in extensions
+
     const val MAX_BYTES = 20L * 1024 * 1024
     private const val MAX_PIXELS = 16_000_000L
-    enum class Status { READY, MISSING, UNSUPPORTED, TOO_LARGE, FAILED }
+    enum class Status { READY, MISSING, UNSUPPORTED, RESTRICTED, TOO_LARGE, FAILED }
     data class Info(val file: Path?, val width: Int? = null, val height: Int? = null, val bytes: Long? = null, val status: Status, val logicalFile: Path? = file)
     data class Loaded(val info: Info, val image: BufferedImage? = null)
 
@@ -28,7 +31,7 @@ internal object AssetImageLoader {
     fun resolve(request: ImageRequest, resolver: (PubspecAssets.Declaration) -> PubspecAssets.Resolved): Location {
         val base = resolver(PubspecAssets.Declaration(request.path, request.packageName)).file
         if (Files.isRegularFile(base)) return Location(base, base)
-        if (!GeneratedAssetReferences.isImage(request.path)) return Location(base, null)
+        if (!AssetImageLoader.isImage(request.path)) return Location(base, null)
         if (!Files.isDirectory(base.parent)) return Location(base, null)
         val variant = variantDirectories(base.parent).asSequence().map { it.resolve(base.fileName) }.firstOrNull(Files::isRegularFile)
         return Location(base, variant)
@@ -44,7 +47,7 @@ internal object AssetImageLoader {
     fun read(file: Path, maxWidth: Int, maxHeight: Int): Loaded {
         if (Thread.currentThread().isInterrupted) throw InterruptedException()
         if (!Files.isRegularFile(file)) return Loaded(Info(null, status = Status.MISSING))
-        if (!GeneratedAssetReferences.isImage(file.toString())) return Loaded(Info(file, bytes = Files.size(file), status = Status.READY))
+        if (!AssetImageLoader.isImage(file.toString())) return Loaded(Info(file, bytes = Files.size(file), status = Status.READY))
         if (file.fileName.toString().endsWith(".svg", true)) return SvgPreviewLoader.read(file, maxWidth, maxHeight)
         val bytes = Files.size(file)
         if (bytes > MAX_BYTES) return Loaded(Info(file, bytes = bytes, status = Status.TOO_LARGE))
@@ -76,7 +79,10 @@ internal object AssetImageLoader {
                 val sampled = reader.read(0, param)
                 if (Thread.currentThread().isInterrupted) { sampled.flush(); throw InterruptedException() }
                 val ratio = minOf(maxWidth.toDouble() / width, maxHeight.toDouble() / height, 1.0)
-                val target = BufferedImage(maxOf(1, (width * ratio).toInt()), maxOf(1, (height * ratio).toInt()), BufferedImage.TYPE_INT_ARGB)
+                val targetWidth = maxOf(1, (width * ratio).toInt())
+                val targetHeight = maxOf(1, (height * ratio).toInt())
+                if (sampled.width == targetWidth && sampled.height == targetHeight && sampled.type != BufferedImage.TYPE_CUSTOM) return Loaded(info, sampled)
+                val target = BufferedImage(targetWidth, targetHeight, BufferedImage.TYPE_INT_ARGB)
                 val graphics = target.createGraphics()
                 try {
                     graphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR)

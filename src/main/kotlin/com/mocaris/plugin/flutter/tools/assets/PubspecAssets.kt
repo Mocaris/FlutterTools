@@ -37,10 +37,15 @@ object PubspecAssets {
         }
     }
 
+    internal fun packageName(root: Map<*, *>): String {
+        val name = root["name"]
+        requireLocalized(name is String && Regex("[a-z_][a-z0-9_]*").matches(name), "error.packageName")
+        return name
+    }
+
     fun parse(text: String): List<Declaration> {
         val root = YamlSupport.load(text) as? Map<*, *> ?: errorLocalized("error.pubspecMapping")
-        val packageName = root["name"]
-        requireLocalized(packageName is String && Regex("[a-z_][a-z0-9_]*").matches(packageName), "error.packageName")
+        val packageName = packageName(root)
         val flutter = root["flutter"] ?: return emptyList()
         requireLocalized(flutter is Map<*, *>, "error.flutterMapping")
         val result = mutableListOf<Declaration>()

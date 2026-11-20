@@ -10,7 +10,6 @@ import com.intellij.testFramework.PlatformTestUtil
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import com.mocaris.plugin.flutter.tools.assets.AssetsSyncService
 import com.mocaris.plugin.flutter.tools.assets.config.AssetsSyncConfig
-import com.mocaris.plugin.flutter.tools.assets.config.DEFAULT_GENERATE_DIR
 import com.mocaris.plugin.flutter.tools.assets.config.DEFAULT_OUT_PATH
 import com.mocaris.plugin.flutter.tools.assets.config.PUBSPEC_FILE_NAME
 import com.mocaris.plugin.flutter.tools.assets.config.TOOLS_FILE_NAME
@@ -32,7 +31,7 @@ class AssetsOutputVfsTest : BasePlatformTestCase() {
     }
 
     private fun contents(config: AssetsSyncConfig = AssetsSyncConfig()) =
-        AssetsGenerator.generate(root.toString(), config, "name: sample")
+        AssetsGenerator.generate(root.toString(), config, "environment: {sdk: ^3.0.0}\nname: sample")
 
     private fun directory(path: String): VirtualFile {
         val file = LocalFileSystem.getInstance().refreshAndFindFileByNioFile(root.resolve(path))!!
@@ -50,11 +49,11 @@ class AssetsOutputVfsTest : BasePlatformTestCase() {
     fun testNewOutputsReplaceVisibleTemporaryEntriesImmediately() {
         val contents = contents()
         val prepared = AssetsOutputWriter.prepare(contents)
-        val generated = directory(DEFAULT_GENERATE_DIR)
-        assertEquals(3, generated.children.count { it.name.startsWith(".fluttertools-") })
+        val generated = directory("lib")
+        assertEquals(1, generated.children.count { it.name.startsWith(".fluttertools-") })
         try { AssetsOutputWriter.publish(contents, prepared) }
         finally { AssetsOutputVfs.finish(prepared, contents.keys) }
-        assertEquals(setOf("assets.g.dart", "fonts.g.dart", "shaders.g.dart"), generated.children.map { it.name }.toSet())
+        assertEquals(setOf("r.dart"), generated.children.map { it.name }.toSet())
         assertNotNull(directory("lib").findChild("r.dart"))
     }
 
@@ -62,53 +61,33 @@ class AssetsOutputVfsTest : BasePlatformTestCase() {
         val contents = contents()
         write(contents)
         val prepared = AssetsOutputWriter.prepare(contents)
-        val generated = directory(DEFAULT_GENERATE_DIR)
-        val entryDirectory = directory("lib")
-        assertEquals(3, generated.children.count { it.name.startsWith(".fluttertools-") })
+        val generated = directory("lib")
+        assertEquals(1, generated.children.count { it.name.startsWith(".fluttertools-") })
         try {
             AssetsOutputWriter.publish(contents, prepared)
             assertTrue(prepared.values.all(Files::exists)) // Identical outputs leave staging files for cleanup.
         } finally { AssetsOutputVfs.finish(prepared, contents.keys) }
         assertTrue(prepared.values.none(Files::exists))
         assertFalse(generated.children.any { it.name.startsWith(".fluttertools-") })
-        assertFalse(entryDirectory.children.any { it.name.startsWith(".fluttertools-") })
-    }
-
-    fun testMigratedPartsDisappearFromTheLoadedOldDirectory() {
-        write(contents(AssetsSyncConfig(generateDir = "lib/gen")))
-        val oldDirectory = directory("lib/gen")
-        assertEquals(3, oldDirectory.children.size)
-        val contents = contents()
-        val obsolete = AssetsGenerator.legacyOutputPaths(root, AssetsSyncConfig())
-        val prepared = AssetsOutputWriter.prepare(contents)
-        val generated = directory(DEFAULT_GENERATE_DIR)
-        try { AssetsOutputWriter.publish(contents, prepared, obsolete) }
-        finally { AssetsOutputVfs.finish(prepared, contents.keys + obsolete) }
-        assertTrue(oldDirectory.children.isEmpty())
-        assertEquals(3, generated.children.size)
-        assertFalse(generated.children.any { it.name.startsWith(".fluttertools-") })
-        assertTrue(VfsUtilCore.loadText(directory("lib").findChild("r.dart")!!).contains("generate/assets.g.dart"))
     }
 
     fun testFailedPublicationRefreshesRolledBackOutputsAndTemporaryDeletions() {
         val originals = contents()
         write(originals)
         val prepared = AssetsOutputWriter.prepare(originals.mapValues { (_, value) -> value + "// changed\n" })
-        val generated = directory(DEFAULT_GENERATE_DIR)
-        val entryDirectory = directory("lib")
-        Files.delete(prepared.getValue(root.resolve("$DEFAULT_GENERATE_DIR/fonts.g.dart")))
+        val generated = directory("lib")
+        Files.delete(prepared.getValue(root.resolve("lib/r.dart")))
         try {
             org.junit.Assert.assertThrows(Exception::class.java) { AssetsOutputWriter.publish(originals.mapValues { (_, value) -> value + "// changed\n" }, prepared) }
         } finally { AssetsOutputVfs.finish(prepared, originals.keys) }
         assertFalse(generated.children.any { it.name.startsWith(".fluttertools-") })
-        assertFalse(entryDirectory.children.any { it.name.startsWith(".fluttertools-") })
         originals.forEach { (path, value) ->
             assertEquals(value, VfsUtilCore.loadText(LocalFileSystem.getInstance().findFileByNioFile(path)!!))
         }
     }
 
     fun testManualGenerationReportsCompletionAfterTheDirectoryIsRefreshed() {
-        Files.writeString(root.resolve(PUBSPEC_FILE_NAME), "name: sample\n")
+        Files.writeString(root.resolve(PUBSPEC_FILE_NAME), "environment: {sdk: ^3.0.0}\nname: sample\n")
         Files.writeString(root.resolve(TOOLS_FILE_NAME), "flutter_tools:\n  assets_sync:\n    out_class: R\n")
         val packageRoot = directory("")
         val service = project.service<AssetsSyncService>()
@@ -116,8 +95,8 @@ class AssetsOutputVfsTest : BasePlatformTestCase() {
         PlatformTestUtil.waitWithEventsDispatching("resource generation and VFS refresh", {
             service.status(packageRoot) == text("assets.generated", DEFAULT_OUT_PATH).toString()
         }, 10)
-        val generated = packageRoot.findFileByRelativePath(DEFAULT_GENERATE_DIR)!!
-        assertEquals(setOf("assets.g.dart", "fonts.g.dart", "shaders.g.dart"), generated.children.map { it.name }.toSet())
+        val generated = packageRoot.findChild("lib")!!
+        assertEquals(setOf("r.dart"), generated.children.map { it.name }.toSet())
         assertFalse(packageRoot.findChild("lib")!!.children.any { it.name.startsWith(".fluttertools-") })
     }
 }

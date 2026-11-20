@@ -32,12 +32,10 @@ object AssetsOutputWriter {
         }
     }
 
-    fun publish(contents: Map<Path, String>, prepared: Map<Path, Path>, obsolete: Set<Path> = emptySet()) {
+    fun publish(contents: Map<Path, String>, prepared: Map<Path, Path>) {
         requireLocalized(contents.keys == prepared.keys, "error.outputBatch")
-        requireLocalized(contents.keys.intersect(obsolete).isEmpty(), "error.outputBatch")
-        val affected = contents.keys + obsolete
-        affected.forEach(AssetsGenerator::validateExistingOutput)
-        val originals = affected.associateWith { if (Files.exists(it)) Files.readAllBytes(it) else null }
+        contents.keys.forEach(AssetsGenerator::validateExistingOutput)
+        val originals = contents.keys.associateWith { if (Files.exists(it)) Files.readAllBytes(it) else null }
         val replaced = mutableListOf<Path>()
         try {
             contents.forEach { (output, content) ->
@@ -45,9 +43,6 @@ object AssetsOutputWriter {
                     move(prepared.getValue(output), output)
                     replaced.add(output)
                 }
-            }
-            obsolete.forEach { output ->
-                if (Files.deleteIfExists(output)) replaced.add(output)
             }
         } catch (e: Exception) {
             replaced.asReversed().forEach { output ->

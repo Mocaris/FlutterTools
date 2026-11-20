@@ -30,7 +30,12 @@ internal object SvgPreviewLoader {
     private val number = Regex("[-+]?(?:[0-9]*\\.[0-9]+|[0-9]+)(?:[eE][-+]?[0-9]+)?")
     private val dimension = Regex("\\s*(${number.pattern})\\s*(px|pt|pc|in|cm|mm|q)?\\s*", RegexOption.IGNORE_CASE)
     private val urls = Regex("url\\s*\\(([^)]*)\\)", RegexOption.IGNORE_CASE)
-    private val blocked = setOf("image", "filter", "mask", "pattern", "foreignObject", "script", "animate", "animateTransform", "animateMotion", "set")
+    private val separators = Regex("[\\s,]+")
+    private val cssDimensions = Regex("(?i)(?:^|[;{])\\s*(?:width|height)\\s*:")
+    private val effectNames = setOf("mask", "filter")
+    private val displacementNames = setOf("fegaussianblur", "feoffset")
+    private val blocked = setOf("image", "feimage", "pattern", "foreignobject", "script", "animate", "animatetransform", "animatemotion", "set")
+    private val filterSteps = setOf("feflood", "fecolormatrix", "feoffset", "fegaussianblur", "fecomposite", "feblend")
     private val loaderContext = LoaderContext.builder()
         .externalResourcePolicy(ResourcePolicy.DENY_ALL)
         .documentLimits(DocumentLimits(64, 64, 2048))
@@ -61,6 +66,7 @@ internal object SvgPreviewLoader {
         val root = document.documentElement
         if (root.localName != "svg" || root.namespaceURI != "http://www.w3.org/2000/svg") return reject(AssetImageLoader.Status.UNSUPPORTED)
         val elements = mutableListOf<Element>()
+        val references = mutableMapOf<Element, MutableSet<String>>()
         val stack = java.util.ArrayDeque<Pair<Element, Int>>()
         stack.add(root to 0)
         var tokens = 0
@@ -68,12 +74,26 @@ internal object SvgPreviewLoader {
             if (Thread.currentThread().isInterrupted) throw InterruptedException()
             val (element, depth) = stack.removeLast()
             if (depth > 32 || elements.size >= 512) return reject(AssetImageLoader.Status.TOO_LARGE)
-            if (element.localName in blocked || element.attributes.length > 64) return reject(AssetImageLoader.Status.UNSUPPORTED)
-            if (element.localName == "style" && (element.textContent.contains("@import", true) || urls.findAll(element.textContent).any { !fragment(it.groupValues[1]) })) return reject(AssetImageLoader.Status.UNSUPPORTED)
+            if (element.tag in blocked || element.attributes.length > 64) return reject(AssetImageLoader.Status.RESTRICTED)
+            fun reference(value: String) { references.getOrPut(element) { mutableSetOf() }.add(value.trim().trim('\'', '"').removePrefix("#")) }
+            if (element.tag == "style") {
+                if (element.textContent.contains("@import", true)) return reject(AssetImageLoader.Status.RESTRICTED)
+                for (match in urls.findAll(element.textContent)) {
+                    if (!fragment(match.groupValues[1])) return reject(AssetImageLoader.Status.RESTRICTED)
+                    reference(match.groupValues[1])
+                }
+            }
             for (index in 0 until element.attributes.length) {
                 val attr = element.attributes.item(index)
-                if (attr.localName == "href" && !fragment(attr.nodeValue) || urls.findAll(attr.nodeValue).any { !fragment(it.groupValues[1]) }) return reject(AssetImageLoader.Status.UNSUPPORTED)
-                if (attr.localName in setOf("d", "points")) {
+                if (attr.localName == "href") {
+                    if (!fragment(attr.nodeValue)) return reject(AssetImageLoader.Status.RESTRICTED)
+                    reference(attr.nodeValue)
+                }
+                for (match in urls.findAll(attr.nodeValue)) {
+                    if (!fragment(match.groupValues[1])) return reject(AssetImageLoader.Status.RESTRICTED)
+                    reference(match.groupValues[1])
+                }
+                if (attr.localName == "d" || attr.localName == "points") {
                     tokens += number.findAll(attr.nodeValue).take(8193).count()
                     if (tokens > 8192) return reject(AssetImageLoader.Status.TOO_LARGE)
                 }
@@ -87,17 +107,21 @@ internal object SvgPreviewLoader {
         }
         val ids = elements.filter { it.hasAttribute("id") }.associateBy { it.getAttribute("id") }
         var expanded = 0
-        fun validateUses(element: Element, chain: Set<Element>, depth: Int): Boolean {
-            if (++expanded > 2048 || depth > 64 || element in chain) return false
-            if (element.localName == "use") {
-                val href = element.getAttribute("href").ifEmpty { element.getAttributeNS("http://www.w3.org/1999/xlink", "href") }
-                val target = ids[href.trim().removePrefix("#")] ?: return false
-                if (!validateUses(target, chain + element, depth + 1)) return false
-            }
-            return children(element).all { validateUses(it, chain + element, depth + 1) }
+        val chain = mutableSetOf<Element>()
+        fun validateReferences(element: Element, depth: Int, effects: Int): Boolean {
+            if (++expanded > 2048 || depth > 64 || !chain.add(element)) return false
+            try {
+                val effectDepth = effects + if (element.tag in effectNames) 1 else 0
+                if (effectDepth > 2) return false
+                for (id in references[element].orEmpty()) {
+                    val target = ids[id] ?: return false
+                    if (!validateReferences(target, depth + 1, effectDepth)) return false
+                }
+                return children(element).all { validateReferences(it, depth + 1, effectDepth) }
+            } finally { chain.remove(element) }
         }
-        if (!validateUses(root, emptySet(), 0)) return reject(AssetImageLoader.Status.TOO_LARGE)
-        val viewBox = root.getAttribute("viewBox").trim().split(Regex("[\\s,]+")).mapNotNull(String::toDoubleOrNull)
+        if (!validateReferences(root, 0, 0)) return reject(AssetImageLoader.Status.TOO_LARGE)
+        val viewBox = root.getAttribute("viewBox").trim().split(separators).mapNotNull(String::toDoubleOrNull)
             .takeIf { it.size == 4 && it.all(Double::isFinite) && it[2] > 0 && it[3] > 0 }
         val width = pixels(root.getAttribute("width")) ?: viewBox?.get(2) ?: 300.0
         val height = pixels(root.getAttribute("height")) ?: viewBox?.get(3) ?: 150.0
@@ -105,12 +129,12 @@ internal object SvgPreviewLoader {
         val scale = minOf(maxWidth / width, maxHeight / height, 1.0)
         val targetWidth = maxOf(1, (width * scale).roundToInt())
         val targetHeight = maxOf(1, (height * scale).roundToInt())
+        effectStatus(elements, targetWidth, targetHeight, viewBox ?: listOf(0.0, 0.0, width, height))?.let { return reject(it) }
         root.setAttribute("width", targetWidth.toString())
         root.setAttribute("height", targetHeight.toString())
         if (viewBox == null) root.setAttribute("viewBox", "0 0 $width $height")
         // CSS root dimensions can override the bounded viewport; leave such files to the image editor.
-        val cssDimensions = Regex("(?i)(?:^|[;{])\\s*(?:width|height)\\s*:")
-        if (cssDimensions.containsMatchIn(root.getAttribute("style")) || elements.any { it.localName == "style" && cssDimensions.containsMatchIn(it.textContent) }) return reject(AssetImageLoader.Status.UNSUPPORTED)
+        if (cssDimensions.containsMatchIn(root.getAttribute("style")) || elements.any { it.tag == "style" && cssDimensions.containsMatchIn(it.textContent) }) return reject(AssetImageLoader.Status.RESTRICTED)
         val output = ByteArrayOutputStream()
         TransformerFactory.newInstance().apply {
             setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, "")
@@ -128,6 +152,7 @@ internal object SvgPreviewLoader {
         try {
             graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
             graphics.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY)
+            graphics.clipRect(0, 0, targetWidth, targetHeight)
             svg.render(null, graphics, ViewBox(targetWidth.toFloat(), targetHeight.toFloat()))
         } catch (e: Exception) {
             image.flush()
@@ -138,7 +163,35 @@ internal object SvgPreviewLoader {
         return AssetImageLoader.Loaded(AssetImageLoader.Info(file, width.roundToInt(), height.roundToInt(), bytes.size.toLong(), AssetImageLoader.Status.READY), image)
     }
 
+    private val Element.tag: String get() = localName.lowercase(java.util.Locale.ROOT)
     private fun fragment(value: String) = value.trim().trim('\'', '"').startsWith('#')
+    private fun effectStatus(elements: List<Element>, width: Int, height: Int, viewBox: List<Double>): AssetImageLoader.Status? {
+        val effects = elements.filter { it.tag in effectNames }
+        if (effects.isEmpty()) return null
+        if (effects.size > 8) return AssetImageLoader.Status.TOO_LARGE
+        if (elements.any { it.tag == "style" }) return AssetImageLoader.Status.RESTRICTED
+        val filters = effects.filter { it.tag == "filter" }
+        val steps = filters.flatMap(::children)
+        if (steps.any { it.tag !in filterSteps }) return AssetImageLoader.Status.RESTRICTED
+        if (steps.size > 16) return AssetImageLoader.Status.TOO_LARGE
+        // shortcut: transformed/CSS filters need device-space bounds; support them when the renderer exposes an allocation budget.
+        if (filters.isNotEmpty() && (elements.any { it.hasAttribute("transform") || it.hasAttribute("style") || it.tag in setOf("style", "use", "symbol") || it.tag == "svg" && it != elements.first() } ||
+            filters.any { it.getAttribute("primitiveUnits").let { units -> units.isNotEmpty() && units != "userSpaceOnUse" } })) return AssetImageLoader.Status.RESTRICTED
+        val deviceScale = maxOf(width / viewBox[2], height / viewBox[3])
+        var margin = 0.0
+        for (step in steps) {
+            if (step.tag !in displacementNames) continue
+            val values = if (step.tag == "fegaussianblur") step.getAttribute("stdDeviation").trim().split(separators).filter(String::isNotEmpty)
+                else listOf(step.getAttribute("dx").ifEmpty { "0" }, step.getAttribute("dy").ifEmpty { "0" })
+            val numbers = values.map { it.toDoubleOrNull() ?: return AssetImageLoader.Status.RESTRICTED }
+            if (numbers.size > 2 || numbers.any { !it.isFinite() || step.tag == "fegaussianblur" && it < 0 }) return AssetImageLoader.Status.RESTRICTED
+            val extent = numbers.maxOfOrNull { kotlin.math.abs(it) } ?: 0.0
+            margin += if (step.tag == "fegaussianblur") 4 * extent * maxOf(1.0, deviceScale) + 2 else extent * deviceScale
+        }
+        // Estimate retained filter channels and scratch surfaces, including pixels outside the final viewport.
+        if (!margin.isFinite() || margin > 128 || (width + 2 * margin) * (height + 2 * margin) * (steps.size + effects.size * 2 + 2) > 8_000_000) return AssetImageLoader.Status.TOO_LARGE
+        return null
+    }
     private fun children(element: Element): List<Element> = (0 until element.childNodes.length).mapNotNull { element.childNodes.item(it) as? Element }
     private fun pixels(value: String): Double? {
         val match = dimension.matchEntire(value) ?: return null

@@ -3,15 +3,17 @@ package com.mocaris.plugin.flutter.tools.assets.generation
 import com.mocaris.plugin.flutter.tools.assets.PubspecAssets
 import com.mocaris.plugin.flutter.tools.assets.config.AssetsSyncConfig
 import com.mocaris.plugin.flutter.tools.assets.config.DEFAULT_EXCLUDE
-import com.mocaris.plugin.flutter.tools.assets.config.DEFAULT_GENERATE_DIR
 import com.mocaris.plugin.flutter.tools.assets.config.DEFAULT_OUT_CLASS
 import com.mocaris.plugin.flutter.tools.assets.config.DEFAULT_OUT_PATH
 import com.mocaris.plugin.flutter.tools.assets.config.MUT_PATTERN
 import com.mocaris.plugin.flutter.tools.assets.config.PUBSPEC_FILE_NAME
-import com.mocaris.plugin.flutter.tools.assets.preview.GeneratedAssetReferences
 import com.mocaris.plugin.flutter.tools.core.YamlSupport
 import com.mocaris.plugin.flutter.tools.core.localization.errorLocalized
 import com.mocaris.plugin.flutter.tools.core.localization.requireLocalized
+import com.google.gson.JsonParser
+import com.mocaris.plugin.flutter.tools.core.DartPackageContext
+import com.mocaris.plugin.flutter.tools.dependencies.versions.PubConstraint
+import com.mocaris.plugin.flutter.tools.dependencies.versions.PubVersion
 import java.nio.file.Files
 import java.nio.file.LinkOption
 import java.nio.file.Path
@@ -35,8 +37,7 @@ object AssetsGenerator {
             requireLocalized(it is Boolean, "error.configBoolean", key); it
         }
         return AssetsSyncConfig(string("out_path", DEFAULT_OUT_PATH),
-            string("out_class", defaultOutClass), boolean("watch"), boolean("out_extension"), strings("excluded", DEFAULT_EXCLUDE),
-            string("generate_dir", DEFAULT_GENERATE_DIR))
+            string("out_class", defaultOutClass), boolean("watch"), boolean("out_extension"), strings("excluded", DEFAULT_EXCLUDE))
     }
 
     fun resolvePath(root: Path, relative: String, allowRoot: Boolean = false): Path {
@@ -54,32 +55,37 @@ object AssetsGenerator {
     fun generate(projectPath: String, config: AssetsSyncConfig, pubspecText: String? = null): Map<Path, String> {
         val root = Path.of(projectPath).toAbsolutePath().normalize()
         val text = pubspecText ?: Files.readString(root.resolve(PUBSPEC_FILE_NAME))
-        return generate(root, config, PubspecAssets.resolve(root, PubspecAssets.parse(text)))
+        return generate(root, config, PubspecAssets.resolve(root, PubspecAssets.parse(text)), text)
     }
 
-    fun generate(root: Path, config: AssetsSyncConfig, resources: List<PubspecAssets.Resolved>): Map<Path, String> {
+    fun generate(root: Path, config: AssetsSyncConfig, resources: List<PubspecAssets.Resolved>, pubspecText: String): Map<Path, String> {
+        val spec = YamlSupport.load(pubspecText) as? Map<*, *> ?: errorLocalized("error.configMapping")
+        validateLanguageVersion(root, spec)
         validateClassName(config.outClass)
-        val outputs = outputPaths(root, config)
-        val entry = validateOutput(root, config.outPath)
-        val allOutputs = outputs.values.toSet() + setOf(entry) + legacyOutputPaths(root, config)
+        val allOutputs = outputPaths(root, config)
+        val entry = allOutputs.single()
         requireLocalized(resources.none { !it.declaration.directory && it.file in allOutputs }, "error.outputResource")
         val nodes = collect(config, resources, allOutputs).map { it.declaration }
-        val contents = linkedMapOf<Path, String>()
-        outputs.forEach { (kind, output) ->
-            contents[output] = AssetsDartTemplate.part(entry, output, config, kind, nodes.filter { it.kind == kind })
+        return mapOf(entry to AssetsDartTemplate.entry(config, nodes, PubspecAssets.packageName(spec)))
+    }
+
+    private fun validateLanguageVersion(root: Path, spec: Map<*, *>) {
+        val sdk = (spec["environment"] as? Map<*, *>)?.get("sdk") as? String
+        requireLocalized(sdk != null && PubConstraint.overlaps(sdk, "<3.0.0") == false &&
+            PubConstraint.overlaps(sdk, ">=3.0.0") == true, "error.resourceLanguage")
+        val config = DartPackageContext.packageConfig(root)
+        if (Files.isRegularFile(config)) {
+            val json = JsonParser.parseString(Files.readString(config)).asJsonObject
+            val language = json.getAsJsonArray("packages")?.firstOrNull { it.asJsonObject.get("name")?.asString == spec["name"] }
+                ?.asJsonObject?.get("languageVersion")?.asString
+            requireLocalized(language == null || PubVersion.parse("$language.0")?.let { it.major >= 3 } == true,
+                "error.resourceLanguage")
         }
-        contents[entry] = AssetsDartTemplate.entry(entry, config, outputs.values, nodes.any { it.kind == PubspecAssets.Kind.FONT })
-        return contents
     }
 
     /** Shared Flutter scanning semantics for generation and inspections. */
     fun collect(root: Path, config: AssetsSyncConfig, resources: List<PubspecAssets.Resolved>): List<PubspecAssets.Resolved> =
-        collect(config, resources, excludedOutputPaths(root, config))
-
-    internal fun excludedOutputPaths(root: Path, config: AssetsSyncConfig): Set<Path> {
-        val entry = validateOutput(root, config.outPath)
-        return outputPaths(root, config).values.toSet() + setOf(entry) + legacyOutputPaths(root, config)
-    }
+        collect(config, resources, outputPaths(root, config))
 
     internal fun collect(config: AssetsSyncConfig, resources: List<PubspecAssets.Resolved>, allOutputs: Set<Path>): List<PubspecAssets.Resolved> {
         val excluded = exclusionMatcher(config.excluded)
@@ -115,47 +121,10 @@ object AssetsGenerator {
         return nodes.values.toList()
     }
 
-    /** Generated parts use the package's configured directory, independently of the entry location. */
-    fun outputPaths(root: Path, config: AssetsSyncConfig): Map<PubspecAssets.Kind, Path> {
-        val entry = validateOutput(root, config.outPath)
-        val directory = resolvePath(root, config.generateDir)
-        requireLocalized(!Files.exists(directory) || Files.isDirectory(directory), "error.generateDirectory", config.generateDir)
-        val outputs = PubspecAssets.Kind.values().associateWith { kind ->
-            validateOutput(root, "${config.generateDir}/${AssetsDartTemplate.resourceName(kind)}.g.dart")
-        }
-        requireLocalized(entry.fileName !in outputs.values.map { it.fileName }, "error.entryFilename", config.outPath)
-        requireLocalized(outputs.values.toSet().size == outputs.size, "error.outputDistinct")
-        return outputs
-    }
-
-    /** Only migrate old files bearing our marker and a part-of reference to this entry. */
-    fun legacyOutputPaths(root: Path, config: AssetsSyncConfig): Set<Path> {
-        val entry = validateOutput(root, config.outPath)
-        val current = outputPaths(root, config).values.toSet()
-        val referenced = if (Files.isRegularFile(entry)) Files.newBufferedReader(entry).use { reader ->
-            if (reader.readLine() != GENERATED_MARKER) emptyList() else reader.lineSequence().take(8).mapNotNull { line ->
-                val literal = line.trim().takeIf { it.startsWith("part ") && it.endsWith(';') }?.removePrefix("part ")?.removeSuffix(";")?.trim()
-                literal?.let(GeneratedAssetReferences::stringValue)
-                    ?.let { entry.parent.resolve(it).normalize() }
-            }.toList()
-        } else emptyList()
-        val filenames = PubspecAssets.Kind.values().map { "${AssetsDartTemplate.resourceName(it)}.g.dart" }.toSet()
-        return (referenced + filenames.flatMap { filename ->
-            listOf(entry.parent.resolve(filename), resolvePath(root, "lib/gen/$filename"), resolvePath(root, "$DEFAULT_GENERATE_DIR/$filename"))
-        }).distinct().filter { path ->
-            if (!path.startsWith(root.toAbsolutePath().normalize()) || path.fileName.toString() !in filenames) return@filter false
-            if (path in current || !Files.isRegularFile(path) || Files.isSymbolicLink(path)) return@filter false
-            if (!path.toRealPath().startsWith(root.toRealPath())) return@filter false
-            val relative = escapeDart(path.parent.relativize(entry).toString().replace('\\', '/'))
-            val references = setOf("part of \"$relative\";", "part of '${relative.replace("'", "\\'")}';")
-            Files.newBufferedReader(path).use { reader ->
-                reader.readLine() == GENERATED_MARKER && reader.lineSequence().take(8).any { it.trim() in references }
-            }
-        }.toSet()
-    }
+    fun outputPaths(root: Path, config: AssetsSyncConfig): Set<Path> = setOf(validateOutput(root, config.outPath))
 
     fun validateClassName(name: String) {
-        requireLocalized(identifier.matches(name) && name !in keywords && name !in setOf("String", "List", "Object", "_flutter"), "error.className", name)
+        requireLocalized(identifier.matches(name) && name !in keywords && name !in setOf("String", "List", "Object", "_flutter", "package", "AssetsMeta", "FontFaceStyle"), "error.className", name)
     }
 
     internal fun fieldName(packageName: String, path: String, extension: Boolean): String {

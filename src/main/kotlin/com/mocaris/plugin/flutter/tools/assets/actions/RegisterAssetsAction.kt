@@ -40,7 +40,7 @@ open class RegisterAssetsAction(private val recursive: Boolean = false) : DumbAw
         try {
             val path = Path.of(root.path)
             val config = project.service<AssetsConfigService>().read(root).effectiveConfig
-            val outputs = AssetsGenerator.excludedOutputPaths(path, config)
+            val outputs = AssetsGenerator.outputPaths(path, config)
             val paths = files.map { file ->
                 val relative = path.relativize(Path.of(file.path)).toString().replace('\\', '/')
                 val resolved = AssetsGenerator.resolvePath(path, relative)

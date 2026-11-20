@@ -37,11 +37,11 @@ class AssetsClassNamingTest {
         assertEquals("FeatureLoginR", AssetsGenerator.parseText("flutter_tools:\n  assets_sync: {}", "FeatureLoginR").outClass)
     }
 
-    @Test fun defaultConfigurationAndGeneratedPublicTypesUseTheModulePrefix() {
+    @Test fun defaultConfigurationKeepsModuleEntryAndPrivateGroupPrefix() {
         val module = Files.createDirectories(root.resolve("modules/login"))
         Files.createDirectories(module.resolve("assets"))
         Files.writeString(module.resolve("assets/logo.png"), "resource")
-        val pubspec = "name: feature_login\nflutter:\n  assets: [assets/logo.png]"
+        val pubspec = "environment: {sdk: ^3.0.0}\nname: feature_login\nflutter:\n  assets: [assets/logo.png]"
         val defaultName = AssetsClassNaming.defaultClass(module, root, pubspec)
         val snapshot = AssetsConfigService.Snapshot("flutter_tools.yaml", "", null, false, defaultName)
         val config = snapshot.effectiveConfig
@@ -49,9 +49,11 @@ class AssetsClassNamingTest {
         val outputs = AssetsGenerator.generate(module.toString(), config, pubspec)
         val entry = outputs.getValue(module.resolve("lib/r.dart"))
         assertTrue(entry.contains("abstract class FeatureLoginR {"))
-        assertTrue(entry.contains("class FeatureLoginRResourceMeta"))
-        assertTrue(entry.contains("enum FeatureLoginRResourceKind"))
-        assertTrue(outputs.getValue(module.resolve("lib/generate/assets.g.dart")).contains("final FeatureLoginRResource"))
+        assertTrue(entry.contains("class FeatureLoginRAssetsMeta {"))
+        assertFalse(entry.contains("class RAssetsMeta"))
+        assertFalse(entry.contains("ResourceKind"))
+        assertFalse(entry.contains("FeatureLoginRResource"))
+        assertTrue(entry.contains("class _FeatureLoginRAssets"))
         assertFalse(entry.contains("abstract class R {"))
     }
 }

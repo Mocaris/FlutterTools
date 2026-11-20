@@ -8,12 +8,8 @@ import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiManager
-import com.intellij.psi.util.CachedValueProvider
-import com.intellij.psi.util.CachedValuesManager
 import com.mocaris.plugin.flutter.tools.assets.PubspecAssets
-import com.mocaris.plugin.flutter.tools.assets.generation.AssetsGenerator
 import com.mocaris.plugin.flutter.tools.assets.preview.AssetPreviewService
-import com.mocaris.plugin.flutter.tools.assets.preview.GeneratedAssetReferences
 import com.mocaris.plugin.flutter.tools.assets.preview.ImageRequest
 import com.mocaris.plugin.flutter.tools.core.FlutterPackageLocator
 import java.nio.file.Path
@@ -28,14 +24,9 @@ class ResourceNavigationHandler : GotoDeclarationHandler {
         if (offset !in string.start until string.end || '/' !in string.value) return null
         val root = FlutterPackageLocator.containing(file.virtualFile) ?: return null
         try {
-            val generated = if (file.text.startsWith(AssetsGenerator.GENERATED_MARKER)) {
-                CachedValuesManager.getCachedValue(file) {
-                    CachedValueProvider.Result.create(GeneratedAssetReferences.parse(file.text), file)
-                }[literal.textOffset]
-            } else null
             val candidate = file.project.service<ResourceCompletionService>().snapshot(root)?.items?.get(string.value)
             if (candidate?.directory == true) return null
-            val request = generated?.let { ImageRequest(root.path, it.packageName, it.path) } ?: candidate?.request ?: run {
+            val request = candidate?.request ?: run {
                 // A first click must work even when no editor preview has warmed the resource index.
                 val spec = root.findChild("pubspec.yaml")?.takeIf { it.length <= 1024 * 1024 } ?: return null
                 val text = FileDocumentManager.getInstance().getCachedDocument(spec)?.text ?: String(spec.contentsToByteArray(), spec.charset)

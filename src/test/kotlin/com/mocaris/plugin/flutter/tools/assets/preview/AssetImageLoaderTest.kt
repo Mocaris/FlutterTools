@@ -39,6 +39,20 @@ class AssetImageLoaderTest {
             assertTrue(result.image!!.width <= 32 && result.image.height <= 32)
         }
     }
+    @Test fun smallImagesKeepTheirNativeColorModelAndTransparentPixels() {
+        val file = image("small.png", 16, 16)
+        val native = ImageIO.read(file.toFile())
+        val preview = AssetImageLoader.read(file, 32, 32).image!!
+        assertEquals(native.type, preview.type)
+        assertEquals(native.getRGB(8, 8), preview.getRGB(8, 8))
+        val transparent = BufferedImage(16, 16, BufferedImage.TYPE_INT_ARGB)
+        transparent.setRGB(8, 8, 0x80402010.toInt())
+        ImageIO.write(transparent, "png", file.toFile())
+        val alpha = AssetImageLoader.read(file, 32, 32).image!!
+        assertEquals(0x80402010.toInt(), alpha.getRGB(8, 8))
+        assertEquals(0, alpha.getRGB(0, 0).ushr(24))
+        native.flush(); preview.flush(); transparent.flush(); alpha.flush()
+    }
 
     @Test fun oversizedAndUnsupportedFilesNeverProduceBitmaps() {
         val file = root.resolve("large.png")

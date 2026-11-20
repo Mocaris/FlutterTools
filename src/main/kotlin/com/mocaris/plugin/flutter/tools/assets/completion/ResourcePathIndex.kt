@@ -3,7 +3,6 @@ package com.mocaris.plugin.flutter.tools.assets.completion
 import com.mocaris.plugin.flutter.tools.assets.PubspecAssets
 import com.mocaris.plugin.flutter.tools.assets.config.MUT_PATTERN
 import com.mocaris.plugin.flutter.tools.assets.preview.AssetImageLoader
-import com.mocaris.plugin.flutter.tools.assets.preview.GeneratedAssetReferences
 import com.mocaris.plugin.flutter.tools.assets.preview.ImageRequest
 import com.mocaris.plugin.flutter.tools.core.DartPackageContext
 import java.nio.file.Files
@@ -71,7 +70,7 @@ internal object ResourcePathIndex {
                                 for (variant in variants) {
                                     if (!budget()) break
                                     visited++
-                                    if (GeneratedAssetReferences.isImage(variant.toString()))
+                                    if (AssetImageLoader.isImage(variant.toString()))
                                         add(resource.declaration.copy(path = resource.bundleDirectory + variant.fileName), variant)
                                 }
                             }
@@ -94,7 +93,7 @@ internal object ResourcePathIndex {
                 } else if (!declaration.directory) {
                     visited++
                     if (Files.isRegularFile(resource.file, NOFOLLOW_LINKS)) add(declaration, resource.file)
-                    else if (GeneratedAssetReferences.isImage(declaration.path) && Files.isDirectory(resource.file.parent, NOFOLLOW_LINKS)) {
+                    else if (AssetImageLoader.isImage(declaration.path) && Files.isDirectory(resource.file.parent, NOFOLLOW_LINKS)) {
                         val directories = variants.getOrPut(resource.file.parent) {
                             if (variants.size >= 128) variants.remove(variants.keys.first())
                             AssetImageLoader.variantDirectories(resource.file.parent)

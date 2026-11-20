@@ -8,6 +8,7 @@ internal class ThumbnailStore<K, V>(private val capacity: Int = 512, private val
     private var nextId = 0L
 
     @Synchronized fun get(key: K): V? = entries[key]
+    @Synchronized fun isValid(key: K, id: Long) = pending[key]?.let { it.id == id && it.valid } == true
     @Synchronized fun begin(key: K): Long? {
         if (entries.containsKey(key) || pending.containsKey(key) || pending.size >= maxPending) return null
         return (++nextId).also { pending[key] = Flight(it) }

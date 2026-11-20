@@ -1,8 +1,6 @@
 package com.mocaris.plugin.flutter.tools.assets.generation
 
-import com.mocaris.plugin.flutter.tools.assets.PubspecAssets
 import com.mocaris.plugin.flutter.tools.assets.config.AssetsSyncConfig
-import com.mocaris.plugin.flutter.tools.assets.config.DEFAULT_GENERATE_DIR
 import java.nio.file.Files
 import java.nio.file.Path
 import org.junit.Assert.*
@@ -13,6 +11,7 @@ import org.junit.rules.TemporaryFolder
 class AssetsOutputTest {
     @get:Rule val folder = TemporaryFolder()
     private val root get() = folder.root.toPath()
+    private val sdk = "environment: {sdk: ^3.0.0}\n"
 
     private fun file(path: String, content: String = "resource"): Path = root.resolve(path).also {
         Files.createDirectories(it.parent)
@@ -20,45 +19,15 @@ class AssetsOutputTest {
     }
 
     private fun generate(config: AssetsSyncConfig = AssetsSyncConfig(), yaml: String = "name: sample") =
-        AssetsGenerator.generate(root.toString(), config, yaml)
+        AssetsGenerator.generate(root.toString(), config, sdk + yaml)
 
-    private fun write(contents: Map<Path, String>, obsolete: Set<Path> = emptySet()) {
+    private fun write(contents: Map<Path, String>) {
         val prepared = AssetsOutputWriter.prepare(contents)
-        try { AssetsOutputWriter.publish(contents, prepared, obsolete) }
+        try { AssetsOutputWriter.publish(contents, prepared) }
         finally { AssetsOutputWriter.cleanup(prepared) }
     }
 
-    @Test fun changingGenerationDirectoryUpdatesReferencesAndMigratesPreviousParts() {
-        var previous = emptySet<Path>()
-        for (directory in listOf(DEFAULT_GENERATE_DIR, "lib/custom", "lib/images ${'$'}tmp", "lib")) {
-            val config = AssetsSyncConfig(generateDir = directory)
-            val contents = generate(config)
-            val obsolete = AssetsGenerator.legacyOutputPaths(root, config)
-            assertEquals(previous - contents.keys, obsolete)
-            val entry = root.resolve("lib/r.dart")
-            val parts = contents.keys - setOf(entry)
-            assertTrue(parts.all { it.parent == root.resolve(directory) })
-            write(contents, obsolete)
-            assertTrue(obsolete.none(Files::exists))
-            for (part in parts) {
-                val reference = AssetsGenerator.escapeDart(entry.parent.relativize(part).toString())
-                assertTrue(Files.readString(entry).contains("part \"$reference\";"))
-                assertTrue(AssetsOutputWriter.isOutputEvent(part.toString(), contents.keys))
-            }
-            val scanned = generate(config, "name: sample\nflutter:\n  assets: [$directory/]\n")
-            assertFalse(scanned.getValue(root.resolve("$directory/assets.g.dart")).contains("ResourceMeta("))
-            previous = parts
-        }
-    }
-
-    @Test fun generationDirectoryRejectsOutsidePathsAndExistingFiles() {
-        file("lib/not-a-directory")
-        for (directory in listOf("../outside", "/tmp/outside", "", ".", "lib/not-a-directory")) {
-            assertThrows(IllegalArgumentException::class.java) { generate(AssetsSyncConfig(generateDir = directory)) }
-        }
-    }
-
-    @Test fun defaultsGenerateEntryAndSeparateResourceGroups() {
+    @Test fun defaultsGenerateAllResourceRecordsInOneEntry() {
         file("assets/logo.png"); file("fonts/demo.ttf"); file("shaders/effect.frag")
         val contents = generate(yaml = """
             name: sample
@@ -69,199 +38,156 @@ class AssetsOutputTest {
                   fonts: [{asset: fonts/demo.ttf}]
               shaders: [shaders/effect.frag]
         """.trimIndent())
-        assertEquals(listOf("assets.g.dart", "fonts.g.dart", "shaders.g.dart", "r.dart"), contents.keys.map { it.fileName.toString() })
-        val entry = contents.getValue(root.resolve("lib/r.dart"))
+        assertEquals(setOf(root.resolve("lib/r.dart")), contents.keys)
+        val entry = contents.values.single()
         assertTrue(entry.contains("abstract class R"))
         listOf("assets", "fonts", "shaders").forEach { name ->
-            assertTrue(entry.contains("part \"generate/$name.g.dart\";"))
             assertTrue(entry.contains("static const $name = _R${name.replaceFirstChar { it.uppercaseChar() }}();"))
-            assertTrue(contents.getValue(root.resolve("lib/generate/$name.g.dart")).contains("part of \"../r.dart\";"))
         }
-        val assets = contents.getValue(root.resolve("lib/generate/assets.g.dart"))
-        val fonts = contents.getValue(root.resolve("lib/generate/fonts.g.dart"))
-        val shaders = contents.getValue(root.resolve("lib/generate/shaders.g.dart"))
-        assertTrue(assets.contains("final RResource logo = const RResource(RResourceMeta(\"sample\", \"assets/logo.png\", RResourceKind.assets));"))
-        assertFalse(assets.contains("fonts/demo.ttf")); assertFalse(assets.contains("shaders/effect.frag"))
-        assertTrue(fonts.contains("fonts/demo.ttf")); assertFalse(fonts.contains("assets/logo.png"))
-        assertTrue(shaders.contains("shaders/effect.frag")); assertFalse(shaders.contains("fonts/demo.ttf"))
+        assertFalse(entry.contains("part ")); assertTrue(entry.contains("class RAssetsMeta")); assertTrue(entry.contains("class RFontFaceMeta"))
+        assertTrue(entry.contains("logo = const RAssetsMeta(meta: (package: R.package, path: \"assets/logo.png\", kind: \"assets\", sourcePackage: null));"))
+        assertTrue(entry.contains("static const String _family = \"Demo\";"))
+        assertTrue(entry.contains("String get family => _family;"))
+        assertTrue(entry.contains("family: _family, fontWeight: _flutter.FontWeight.w400, fontStyle: _flutter.FontStyle.normal"))
+        assertTrue(entry.contains("kind: \"shaders\""))
         write(contents)
-        contents.forEach { (path, content) -> assertEquals(content, Files.readString(path)) }
+        assertEquals(entry, Files.readString(contents.keys.single()))
+        assertFalse(Files.exists(root.resolve("lib/generate")))
     }
 
-    @Test fun customEntryKeepsPartsInLibGenerateWithRelativeReferences() {
+    @Test fun customEntryAndClassAreRespectedWithoutCreatingAnotherDirectory() {
         val contents = generate(AssetsSyncConfig(outPath = "lib/generated/resources.dart", outClass = "Resources"))
-        assertTrue(contents.keys.toList().dropLast(1).all { it.parent == root.resolve("lib/generate") })
-        val entry = contents.getValue(root.resolve("lib/generated/resources.dart"))
-        assertTrue(entry.contains("static const assets = _ResourcesAssets();"))
-        assertTrue(entry.contains("part \"../generate/assets.g.dart\";"))
-        assertTrue(contents.getValue(root.resolve("lib/generate/fonts.g.dart")).contains("part of \"../generated/resources.dart\";"))
+        assertEquals(setOf(root.resolve("lib/generated/resources.dart")), contents.keys)
+        assertTrue(contents.values.single().contains("static const assets = _ResourcesAssets();"))
+        write(contents)
+        assertFalse(Files.exists(root.resolve("lib/generate")))
     }
 
     @Test fun emptyGroupsReplaceStaleConstants() {
         file("assets/logo.png")
         write(generate(yaml = "name: sample\nflutter:\n  assets: [assets/logo.png]\n"))
         write(generate())
-        assertFalse(Files.readString(root.resolve("lib/generate/assets.g.dart")).contains("logo"))
-        assertTrue(Files.readString(root.resolve("lib/generate/assets.g.dart")).contains("const _RAssets();"))
+        val entry = Files.readString(root.resolve("lib/r.dart"))
+        assertFalse(entry.contains("logo")); assertTrue(entry.contains("const _RAssets();"))
     }
 
-    @Test fun conflictingPartPreventsAllReplacements() {
+    @Test fun entryRejectsOutsidePathsAndExistingDirectories() {
+        Files.createDirectories(root.resolve("lib/directory.dart"))
+        for (path in listOf("../outside.dart", "/tmp/outside.dart", "", ".", "lib/directory.dart", "pubspec.yaml")) {
+            assertThrows(IllegalArgumentException::class.java) { generate(AssetsSyncConfig(outPath = path)) }
+        }
+    }
+
+    @Test fun conflictingEntryPreventsReplacement() {
         val contents = generate()
-        write(contents)
-        val protected = file("lib/generate/fonts.g.dart", "user content")
-        val updated = contents.mapValues { (_, content) -> content + "// changed\n" }
-        assertThrows(IllegalArgumentException::class.java) { write(updated) }
-        assertEquals("user content", Files.readString(protected))
-        contents.filterKeys { it != protected }.forEach { (path, content) -> assertEquals(content, Files.readString(path)) }
+        file("lib/r.dart", "user content")
+        assertThrows(IllegalArgumentException::class.java) { write(contents) }
+        assertEquals("user content", Files.readString(root.resolve("lib/r.dart")))
     }
 
-    @Test fun conflictCreatedAfterPreparationPreventsAllReplacements() {
+    @Test fun conflictCreatedAfterPreparationPreventsReplacement() {
         val contents = generate()
         val prepared = AssetsOutputWriter.prepare(contents)
         try {
-            file("lib/generate/shaders.g.dart", "user content")
+            file("lib/r.dart", "user content")
             assertThrows(IllegalArgumentException::class.java) { AssetsOutputWriter.publish(contents, prepared) }
-            assertFalse(Files.exists(root.resolve("lib/generate/assets.g.dart")))
-            assertFalse(Files.exists(root.resolve("lib/r.dart")))
+            assertEquals("user content", Files.readString(root.resolve("lib/r.dart")))
         } finally { AssetsOutputWriter.cleanup(prepared) }
     }
 
-    @Test fun failedReplacementRollsBackEarlierOutputs() {
-        val contents = generate()
+    @Test fun failedBatchReplacementRollsBackEarlierOutputs() {
+        val contents = generate() + (root.resolve("lib/other.dart") to "${AssetsGenerator.GENERATED_MARKER}\n")
         write(contents)
         val updated = contents.mapValues { (_, content) -> content + "// changed\n" }
         val prepared = AssetsOutputWriter.prepare(updated)
         try {
-            Files.delete(prepared.getValue(root.resolve("lib/generate/fonts.g.dart")))
+            Files.delete(prepared.getValue(root.resolve("lib/other.dart")))
             assertThrows(Exception::class.java) { AssetsOutputWriter.publish(updated, prepared) }
             contents.forEach { (path, content) -> assertEquals(content, Files.readString(path)) }
         } finally { AssetsOutputWriter.cleanup(prepared) }
     }
 
-    @Test fun generatedPartsAreExcludedFromDirectoryDeclarations() {
+    @Test fun generatedEntryIsExcludedFromDirectoryDeclarations() {
         file("lib/logo.png")
         write(generate())
-        val contents = generate(yaml = "name: sample\nflutter:\n  assets: [lib/, lib/generate/]\n")
-        val assets = contents.getValue(root.resolve("lib/generate/assets.g.dart"))
-        assertTrue(assets.contains("lib/logo.png"))
-        assertFalse(assets.contains("lib/r.dart")); assertFalse(assets.contains("lib/generate/fonts.g.dart"))
-        assertFalse(assets.contains("lib/generate/assets.g.dart")); assertFalse(assets.contains("lib/generate/shaders.g.dart"))
+        val entry = generate(yaml = "name: sample\nflutter:\n  assets: [lib/]\n").values.single()
+        assertTrue(entry.contains("lib/logo.png"))
+        assertFalse(entry.contains("\"lib/r.dart\""))
     }
 
-    @Test fun explicitPartResourceAndEntryFilenameConflictsAreRejected() {
-        file("lib/generate/fonts.g.dart")
-        assertThrows(IllegalArgumentException::class.java) { generate(yaml = "name: sample\nflutter:\n  assets: [lib/generate/fonts.g.dart]\n") }
-        listOf("assets", "fonts", "shaders").forEach { name ->
-            assertThrows(IllegalArgumentException::class.java) { generate(AssetsSyncConfig(outPath = "lib/generate/$name.g.dart")) }
+    @Test fun explicitEntryResourceIsRejected() {
+        write(generate())
+        assertThrows(IllegalArgumentException::class.java) {
+            generate(yaml = "name: sample\nflutter:\n  assets: [lib/r.dart]\n")
         }
     }
 
     @Test fun outputAndStagingEventsDoNotTriggerResourceGeneration() {
         val outputs = generate().keys
-        assertTrue(AssetsOutputWriter.isOutputEvent(root.resolve("lib/generate/assets.g.dart").toString(), outputs))
         assertTrue(AssetsOutputWriter.isOutputEvent(root.resolve("lib/r.dart").toString(), outputs))
         assertTrue(AssetsOutputWriter.isOutputEvent(root.resolve("lib/.fluttertools-123.tmp").toString(), outputs))
         assertFalse(AssetsOutputWriter.isOutputEvent(root.resolve("lib/logo.png").toString(), outputs))
         assertFalse(AssetsOutputWriter.isOutputEvent(root.resolve("other/.fluttertools-123.tmp").toString(), outputs))
     }
-    private fun legacyPart(name: String, entry: String = "r.dart") = file("lib/$name.g.dart",
-        AssetsGenerator.GENERATED_MARKER + "\n// dart format: off\npart of '$entry';\n// old output\n")
 
-    @Test fun legacyPartsMoveToGenerateAndAreExcludedFromResources() {
-        val obsolete = listOf("assets", "fonts", "shaders").map { legacyPart(it) }.toSet()
-        file("lib/logo.png")
-        assertEquals(obsolete, AssetsGenerator.legacyOutputPaths(root, AssetsSyncConfig()))
-        val contents = generate(yaml = "name: sample\nflutter:\n  assets: [lib/]\n")
-        val assets = contents.getValue(root.resolve("lib/generate/assets.g.dart"))
-        assertTrue(assets.contains("lib/logo.png"))
-        assertFalse(assets.contains("\"lib/assets.g.dart\""))
-        write(contents, obsolete)
-        assertTrue(obsolete.none { Files.exists(it) })
-        assertTrue(contents.keys.all { Files.exists(it) })
-    }
-
-    @Test fun migrationPreservesUserFilesAndPartsForOtherEntries() {
-        val user = file("lib/assets.g.dart", "user content")
-        val other = legacyPart("fonts", "other.dart")
-        assertTrue(AssetsGenerator.legacyOutputPaths(root, AssetsSyncConfig()).isEmpty())
-        write(generate(), AssetsGenerator.legacyOutputPaths(root, AssetsSyncConfig()))
-        assertEquals("user content", Files.readString(user))
-        assertTrue(Files.readString(other).contains("part of 'other.dart'"))
-    }
-
-    @Test fun failedNewOutputReplacementKeepsLegacyFiles() {
-        val obsolete = listOf("assets", "fonts", "shaders").map { legacyPart(it) }.toSet()
-        val originals = obsolete.associateWith { Files.readString(it) }
-        val contents = generate()
-        val prepared = AssetsOutputWriter.prepare(contents)
-        try {
-            Files.delete(prepared.getValue(root.resolve("lib/generate/fonts.g.dart")))
-            assertThrows(Exception::class.java) { AssetsOutputWriter.publish(contents, prepared, obsolete) }
-            originals.forEach { (path, text) -> assertEquals(text, Files.readString(path)) }
-            assertFalse(Files.exists(root.resolve("lib/generate/assets.g.dart")))
-        } finally { AssetsOutputWriter.cleanup(prepared) }
-    }
-
-    @Test fun entryCanLiveInGenerateWithoutMigratingCurrentParts() {
-        val config = AssetsSyncConfig(outPath = "lib/generate/r.dart")
-        val contents = generate(config)
+    @Test fun generationDoesNotReadOrDeleteUnrelatedFilesOrFormerOutputDirectories() {
+        val packageRoot = folder.newFolder("app").toPath()
+        val outside = folder.newFolder("outside").toPath()
+        val unrelated = outside.resolve("notes.dart")
+        Files.writeString(unrelated, "user content")
+        Files.createDirectories(packageRoot.resolve("lib"))
+        Files.createSymbolicLink(packageRoot.resolve("lib/gen"), outside)
+        Files.createSymbolicLink(packageRoot.resolve("lib/generate"), outside)
+        val contents = AssetsGenerator.generate(packageRoot.toString(), AssetsSyncConfig(), sdk + "name: sample")
+        assertEquals(setOf(packageRoot.resolve("lib/r.dart")), contents.keys)
         write(contents)
-        assertTrue(AssetsGenerator.legacyOutputPaths(root, config).isEmpty())
-        assertTrue(contents.getValue(root.resolve("lib/generate/r.dart")).contains("part \"assets.g.dart\";"))
-        assertTrue(contents.getValue(root.resolve("lib/generate/assets.g.dart")).contains("part of \"r.dart\";"))
+        assertEquals("user content", Files.readString(unrelated))
+        assertTrue(Files.isSymbolicLink(packageRoot.resolve("lib/gen")))
+        assertTrue(Files.isSymbolicLink(packageRoot.resolve("lib/generate")))
     }
-
-    @Test fun oldGenPartsMigrateForDefaultAndCustomEntries() {
-        for (outPath in listOf("lib/r.dart", "lib/nested/resources.dart", "lib/gen/r.dart")) {
-            val config = AssetsSyncConfig(outPath = outPath)
-            val entry = root.resolve(outPath)
-            val old = PubspecAssets.Kind.values().associateWith { kind ->
-                root.resolve("lib/gen/${AssetsDartTemplate.resourceName(kind)}.g.dart")
-            }
-            write(old.map { (kind, path) -> path to AssetsDartTemplate.part(entry, path, config, kind, emptyList()) }.toMap() +
-                (entry to AssetsDartTemplate.entry(entry, config, old.values, false)))
-            assertEquals(old.values.toSet(), AssetsGenerator.legacyOutputPaths(root, config))
-            val contents = generate(config, "name: sample\nflutter:\n  assets: [lib/gen/]\n")
-            val assets = contents.getValue(root.resolve("lib/generate/assets.g.dart"))
-            assertFalse(assets.contains("\"lib/gen/"))
-            write(contents, AssetsGenerator.legacyOutputPaths(root, config))
-            assertTrue(old.values.none { Files.exists(it) })
-            assertTrue(Files.exists(entry))
-            assertFalse(Files.readString(entry).contains("part \"gen/"))
-            assertTrue(AssetsGenerator.legacyOutputPaths(root, config).isEmpty())
+    @Test fun metadataClassesAreDeclaredOnceAndReferencedByFieldsAndFonts() {
+        file("assets/one.png"); file("assets/two.png"); file("fonts/demo.ttf")
+        val text = generate(yaml = "name: sample\nflutter:\n  assets: [assets/]\n  fonts: [{family: Demo, fonts: [{asset: fonts/demo.ttf}]}]\n").values.single()
+        for (name in listOf("RAssetsMeta", "RFontFaceMeta")) {
+            assertEquals(1, Regex("class $name(?: |\\{)").findAll(text).count())
         }
+        assertTrue(text.contains("final RAssetsMeta one = const RAssetsMeta("))
+        assertTrue(text.contains("final RAssetsMeta two = const RAssetsMeta("))
+        assertTrue(text.contains("final List<RFontFaceMeta> faces = const ["))
+        assertTrue(text.contains("RFontFaceMeta get w400 => faces[0];"))
+        assertTrue(text.contains("meta:"))
+        assertTrue(text.contains("style:"))
+        assertTrue(text.contains("String get package => meta.package;"))
+        assertEquals(2, Regex("path: \"assets/").findAll(text).count())
+        val empty = generate().values.single()
+        assertFalse(empty.contains("RFontFaceMeta")); assertFalse(empty.contains("package:flutter"))
     }
 
-    @Test fun migrationPreservesUnrelatedGenFiles() {
-        val user = file("lib/gen/assets.g.dart", "user content")
-        val other = file("lib/gen/fonts.g.dart", AssetsGenerator.GENERATED_MARKER + "\npart of '../other.dart';\n")
-        val asset = file("lib/gen/logo.png")
-        assertTrue(AssetsGenerator.legacyOutputPaths(root, AssetsSyncConfig()).isEmpty())
-        write(generate(), AssetsGenerator.legacyOutputPaths(root, AssetsSyncConfig()))
-        assertEquals("user content", Files.readString(user))
-        assertTrue(Files.readString(other).contains("part of '../other.dart'"))
-        assertTrue(Files.exists(asset))
+    @Test fun metadataMethodsUseTheEntryPrefixAndOnlyImportFlutterForFonts() {
+        val plain = generate(AssetsSyncConfig(outClass = "LoginR")).values.single()
+        assertTrue(plain.contains("class LoginRAssetsMeta {"))
+        assertTrue(plain.contains("const LoginRAssetsMeta({required this.meta});"))
+        assertTrue(plain.contains("String get fullPath => path.startsWith('packages/')"))
+        assertFalse(plain.contains("FontFaceMeta")); assertFalse(plain.contains("package:flutter"))
+        assertTrue(plain.contains("typedef AssetsMeta =")); assertFalse(plain.contains("FontFaceStyle"))
+        assertTrue(plain.contains("final AssetsMeta meta;"))
+        assertTrue(plain.contains("class _LoginRAssets {"))
+        assertFalse(plain.contains("class _LoginRAssetsMeta")); assertFalse(plain.contains("typedef _"))
+        assertFalse(plain.contains("extension "))
+        file("fonts/demo.ttf")
+        val fonts = generate(AssetsSyncConfig(outClass = "LoginR"), "name: sample\nflutter:\n  fonts: [{family: Demo, fonts: [{asset: fonts/demo.ttf}]}]\n").values.single()
+        assertTrue(fonts.contains("class LoginRFontFaceMeta extends LoginRAssetsMeta {"))
+        assertTrue(fonts.contains("typedef FontFaceStyle =")); assertTrue(fonts.contains("final FontFaceStyle style;"))
+        assertTrue(fonts.contains("class _LoginRFontsDemo {")); assertFalse(fonts.contains("class _LoginRFontFaceMeta"))
+        assertTrue(fonts.contains("const LoginRFontFaceMeta({"))
+        assertTrue(fonts.contains("required super.meta, required this.style"))
+        assertEquals(1, Regex("String get fullPath =>").findAll(fonts).count())
+        assertEquals(1, Regex("_flutter.TextStyle get textStyle =>").findAll(fonts).count())
+        assertTrue(fonts.contains("String get family => style.family;"))
+        assertTrue(fonts.contains("_flutter.FontWeight get fontWeight => style.fontWeight;"))
+        assertTrue(fonts.contains("_flutter.FontStyle get fontStyle => style.fontStyle;"))
+        assertTrue(fonts.contains("fontFamily: style.family,"))
+        assertTrue(fonts.contains("fontWeight: style.fontWeight,"))
+        assertTrue(fonts.contains("fontStyle: style.fontStyle"))
     }
-
-    @Test fun failedReplacementKeepsOldGenFilesAndEntryReferences() {
-        val config = AssetsSyncConfig()
-        val entry = root.resolve(config.outPath)
-        val old = PubspecAssets.Kind.values().associateWith { kind ->
-            root.resolve("lib/gen/${AssetsDartTemplate.resourceName(kind)}.g.dart")
-        }
-        val originals = old.map { (kind, path) -> path to AssetsDartTemplate.part(entry, path, config, kind, emptyList()) }.toMap() +
-            (entry to AssetsDartTemplate.entry(entry, config, old.values, false))
-        write(originals)
-        val contents = generate()
-        val prepared = AssetsOutputWriter.prepare(contents)
-        try {
-            Files.delete(prepared.getValue(root.resolve("lib/generate/fonts.g.dart")))
-            assertThrows(Exception::class.java) {
-                AssetsOutputWriter.publish(contents, prepared, AssetsGenerator.legacyOutputPaths(root, config))
-            }
-            originals.forEach { (path, text) -> assertEquals(text, Files.readString(path)) }
-            assertFalse(Files.exists(root.resolve("lib/generate/assets.g.dart")))
-        } finally { AssetsOutputWriter.cleanup(prepared) }
-    }
-
 }

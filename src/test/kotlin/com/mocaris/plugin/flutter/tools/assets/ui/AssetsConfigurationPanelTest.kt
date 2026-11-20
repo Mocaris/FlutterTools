@@ -46,7 +46,7 @@ class AssetsConfigurationPanelTest : BasePlatformTestCase() {
         VfsRootAccess.allowRootAccess(testRootDisposable, path.toString(), path.toRealPath().toString())
         try {
             paths.forEach { Files.createDirectories(path.resolve(it)) }
-            Files.writeString(path.resolve("pubspec.yaml"), "name: login\nflutter:\n  assets:\n" + paths.joinToString("\n", postfix = "\n") { "    - $it" })
+            Files.writeString(path.resolve("pubspec.yaml"), "environment: {sdk: ^3.0.0}\nname: login\nflutter:\n  assets:\n" + paths.joinToString("\n", postfix = "\n") { "    - $it" })
             val root = LocalFileSystem.getInstance().refreshAndFindFileByNioFile(path)!!
             root.refresh(false, true)
             action(path, root)
@@ -107,6 +107,7 @@ class AssetsConfigurationPanelTest : BasePlatformTestCase() {
         val panel = AssetsConfigurationPanel(project)
         panel.selectPackage(root)
         val fields = components(panel).filterIsInstance<JBTextField>()
+        assertEquals(2, fields.size)
         val output = fields.single { it.text == "lib/r.dart" }
         val buttons = components(panel).filterIsInstance<JButton>()
         output.text = "lib/kept.dart"

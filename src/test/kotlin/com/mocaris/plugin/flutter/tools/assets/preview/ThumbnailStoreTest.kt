@@ -26,10 +26,13 @@ class ThumbnailStoreTest {
     @Test fun invalidationRejectsLateResultsWithoutFreeingExtraQueueSlots() {
         val cache = ThumbnailStore<Int, String>(5, 1)
         val ticket = cache.begin(1)!!
+        assertTrue(cache.isValid(1, ticket))
         cache.invalidate({ _, _ -> true }, { true })
+        assertFalse(cache.isValid(1, ticket))
         assertNull(cache.begin(2))
         assertFalse(cache.complete(1, ticket, "stale")); assertNull(cache.get(1))
         val fresh = cache.begin(1)!!
+        assertFalse(cache.isValid(1, ticket)); assertTrue(cache.isValid(1, fresh))
         assertTrue(cache.complete(1, fresh, "fresh")); assertEquals("fresh", cache.get(1))
         cache.invalidate({ key, _ -> key == 1 }, { false })
         assertNull(cache.get(1))

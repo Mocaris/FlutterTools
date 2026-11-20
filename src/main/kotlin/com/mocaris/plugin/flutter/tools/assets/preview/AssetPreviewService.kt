@@ -53,7 +53,7 @@ class AssetPreviewService(private val project: Project) : Disposable {
     private val repaintRoots = mutableSetOf<String>()
     private val repaintPending = AtomicBoolean()
     private var popup: JBPopup? = null
-    private var popupJob: Job? = null
+    @Volatile private var popupJob: Job? = null
     private var popupEpoch = 0L
 
     init {
@@ -63,11 +63,12 @@ class AssetPreviewService(private val project: Project) : Disposable {
                 if (paths.isEmpty()) return
                 val configuration = paths.any { it.substringAfterLast('/') in setOf(".dart_tool", "package_config.json", "pubspec.yaml", "pubspec_overrides.yaml") }
                 if (configuration) synchronized(resolvers) { resolvers.clear() }
-                val relevant = configuration || events.any { it.file?.isDirectory == true } || paths.any(GeneratedAssetReferences::isImage)
+                val relevant = configuration || events.any { it.file?.isDirectory == true } || paths.any(AssetImageLoader::isImage)
                 val changed = paths.map { Path.of(it).normalize() }
                 val affected = thumbnails.invalidate({ request, loaded ->
                     changed.any { ImageInvalidation.affected(request, loaded.info, it) }
                 }, { relevant })
+                affected.forEach { thumbnailJobs[it]?.cancel() }
                 affected.map { it.root }.distinct().forEach(::repaint)
             }
         })
@@ -117,9 +118,13 @@ class AssetPreviewService(private val project: Project) : Disposable {
     internal fun thumbnail(request: ImageRequest): BufferedImage? {
         if (!enabled || !scope.isActive) return null
         thumbnails.get(request)?.let { return it.image }
+        if (popupJob?.isActive == true) return null
         val id = thumbnails.begin(request) ?: return null
         val job = scope.launch(start = CoroutineStart.LAZY) {
-            val value = readers.withPermit { runInterruptible { load(request, 32, 32) } }
+            val value = readers.withPermit {
+                if (!thumbnails.isValid(request, id) || popupJob?.isActive == true) return@withPermit null
+                runInterruptible { load(request, 32, 32) }
+            } ?: return@launch
             ensureActive()
             if (!enabled) return@launch
             thumbnails.complete(request, id, value)
@@ -158,15 +163,15 @@ class AssetPreviewService(private val project: Project) : Disposable {
         append(request.path)
         if (info?.width != null) append("\n" + message("preview.dimensions", info.width, info.height))
         if (info?.bytes != null) append("\n" + message("preview.bytes", info.bytes))
-        if (GeneratedAssetReferences.isImage(request.path) && (info == null || info.status != AssetImageLoader.Status.READY)) append("\n" + message("preview.${info?.status?.name?.lowercase() ?: "loading"}"))
+        if (AssetImageLoader.isImage(request.path) && (info == null || info.status != AssetImageLoader.Status.READY)) append("\n" + message("preview.${info?.status?.name?.lowercase() ?: "loading"}"))
     }
 
     internal fun show(request: ImageRequest, event: MouseEvent) {
         if (!enabled || project.isDisposed) return
         val epoch = ++popupEpoch
         popup?.cancel(); popupJob?.cancel()
-        if (!GeneratedAssetReferences.isImage(request.path)) {
-            popupJob = scope.launch {
+        if (!AssetImageLoader.isImage(request.path)) {
+            val loading = scope.launch(start = CoroutineStart.LAZY) {
                 val value = readers.withPermit { runInterruptible { load(request, 32, 32) } }
                 ensureActive()
                 ApplicationManager.getApplication().invokeLater {
@@ -175,6 +180,9 @@ class AssetPreviewService(private val project: Project) : Disposable {
                         ?.let { OpenFileDescriptor(project, it).navigate(true) }
                 }
             }
+            popupJob = loading
+            loading.invokeOnCompletion { if (enabled && scope.isActive) repaint(request.root) }
+            loading.start()
             return
         }
         val image = JBLabel().localized("preview.loading").apply {
@@ -199,7 +207,7 @@ class AssetPreviewService(private val project: Project) : Disposable {
             }).createPopup()
         popup = current
         current.show(RelativePoint(event))
-        job = scope.launch {
+        val loading = scope.launch(start = CoroutineStart.LAZY) {
             val value = readers.withPermit { runInterruptible { load(request, 960, 720) } }
             ensureActive()
             ApplicationManager.getApplication().invokeLater {
@@ -216,7 +224,10 @@ class AssetPreviewService(private val project: Project) : Disposable {
                 }
             }
         }
-        popupJob = job
+        job = loading
+        popupJob = loading
+        loading.invokeOnCompletion { if (enabled && scope.isActive) repaint(request.root) }
+        loading.start()
     }
 
     /** Apply editor preferences immediately, independently of generator YAML edits. */
@@ -255,7 +266,7 @@ internal class ThumbnailIcon(private val service: AssetPreviewService, private v
     override fun getIconHeight() = JBUI.scale(16)
     override fun paintIcon(component: Component?, graphics: Graphics, x: Int, y: Int) {
         if (!service.isEnabled()) return
-        val image = if (GeneratedAssetReferences.isImage(request.path)) service.thumbnail(request) else null
+        val image = if (AssetImageLoader.isImage(request.path)) service.thumbnail(request) else null
         if (image == null) service.fileIcon(request).paintIcon(component, graphics, x, y)
         else {
             val ratio = minOf(iconWidth.toDouble() / image.width, iconHeight.toDouble() / image.height)

@@ -4,6 +4,7 @@ import com.mocaris.plugin.flutter.tools.assets.generation.AssetsGenerator
 import com.mocaris.plugin.flutter.tools.core.localization.errorLocalized
 import com.mocaris.plugin.flutter.tools.core.localization.requireLocalized
 import org.jetbrains.yaml.psi.YAMLFile
+import org.jetbrains.yaml.psi.YAMLKeyValue
 import org.jetbrains.yaml.psi.YAMLMapping
 import org.yaml.snakeyaml.DumperOptions
 import org.yaml.snakeyaml.Yaml
@@ -22,7 +23,6 @@ object AssetsConfigEditor {
         val values = linkedMapOf(
             "excluded" to (list(config.excluded) to (previous?.excluded == config.excluded)),
             "out_path" to (quoted(config.outPath) to (previous?.outPath == config.outPath)),
-            "generate_dir" to (quoted(config.generateDir) to (previous?.generateDir == config.generateDir)),
             "out_class" to (quoted(config.outClass) to (previous?.outClass == config.outClass)),
             "out_extension" to (config.outExtension.toString() to (previous?.outExtension == config.outExtension)),
             "watch" to (config.watcher.toString() to (previous?.watcher == config.watcher)))
@@ -46,16 +46,15 @@ object AssetsConfigEditor {
         fun commentsIn(start: Int, end: Int) = commentTokens.filter { it.start >= start && it.end <= end }.map { it.text }
         val top = yaml.documents.singleOrNull()?.topLevelValue as? YAMLMapping ?: errorLocalized("error.configSingle")
         val edits = mutableListOf<Edit>()
-        fun appendEntries(mapping: YAMLMapping, entries: List<String>) {
+        fun appendEntries(mapping: YAMLMapping, entries: List<String>, remaining: List<YAMLKeyValue> = mapping.keyValues.toList()) {
             if (entries.isEmpty()) return
             val end = mapping.textRange.endOffset
             if (mapping.text.trimStart().startsWith("{")) {
                 val close = source.lastIndexOf('}', end - 1)
                 requireLocalized(close >= mapping.textOffset, "error.flowMapping")
-                val tail = source.substring(
+                val tail = if (remaining.lastOrNull() == mapping.keyValues.lastOrNull()) source.substring(
                     mapping.keyValues.lastOrNull()?.textRange?.endOffset ?: (mapping.textOffset + 1), close
-                ).lineSequence().joinToString("") { it.substringBefore('#') }
-                val remaining = mapping.keyValues.filter { it.keyText != "sync_path" }
+                ).lineSequence().joinToString("") { it.substringBefore('#') } else ""
                 val separator = if (remaining.isNotEmpty() && ',' !in tail) ", " else " "
                 edits.add(Edit(close, close, separator + entries.joinToString(", ") + " "))
             } else {
@@ -83,29 +82,27 @@ object AssetsConfigEditor {
             } else {
                 val assets = assetsKey.value as? YAMLMapping ?: errorLocalized("error.assetsMapping")
                 val flow = assets.text.trimStart().startsWith("{")
-                val legacy = assets.getKeyValueByKey("sync_path")
-                if (legacy != null) {
-                    if (assets.text.trimStart().startsWith("{")) {
-                        val keys = assets.keyValues.toList()
-                        val index = keys.indexOf(legacy)
-                        val next = keys.getOrNull(index + 1)
-                        val previousKey = keys.getOrNull(index - 1)
+                val keys = assets.keyValues.toList()
+                var index = 0
+                while (index < keys.size) {
+                    if (keys[index].keyText !in setOf("sync_path", "generate_dir")) { index++; continue }
+                    val first = index
+                    while (index < keys.size && keys[index].keyText in setOf("sync_path", "generate_dir")) index++
+                    val legacy = keys[first]
+                    val last = keys[index - 1]
+                    if (flow) {
+                        val next = keys.getOrNull(index)
+                        val previousKey = keys.getOrNull(first - 1)
                         val start = if (next == null && previousKey != null) previousKey.textRange.endOffset else legacy.textOffset
-                        var end = next?.textOffset ?: legacy.textRange.endOffset
-                        if (keys.size == 1) {
-                            val close = source.lastIndexOf('}', assets.textRange.endOffset - 1)
-                            val comma = source.indexOf(',', end)
-                            if (comma in end until close) end = comma + 1
-                        }
+                        val end = next?.textOffset ?: source.lastIndexOf('}', assets.textRange.endOffset - 1)
                         val comments = commentsIn(start, end)
                         edits.add(Edit(start, end, if (comments.isEmpty()) "" else "\n" + comments.joinToString("\n") + "\n"))
                     } else {
                         val start = source.lastIndexOf('\n', legacy.textOffset - 1) + 1
-                        val lineEnd = source.indexOf('\n', legacy.textRange.endOffset).takeIf { it >= 0 } ?: source.length
+                        val lineEnd = source.indexOf('\n', last.textRange.endOffset).takeIf { it >= 0 } ?: source.length
                         val indent = source.substring(start, legacy.textOffset)
                         val kept = commentsIn(start, lineEnd)
-                        edits.add(Edit(start, lineEnd,
-                            if (kept.isEmpty()) "" else kept.joinToString("\n", postfix = "\n") { indent + it }))
+                        edits.add(Edit(start, lineEnd, if (kept.isEmpty()) "" else kept.joinToString("\n", postfix = "\n") { indent + it }))
                     }
                 }
                 val missing = mutableListOf<String>()
@@ -136,7 +133,7 @@ object AssetsConfigEditor {
                         }
                     }
                 }
-                appendEntries(assets, missing)
+                appendEntries(assets, missing, keys.filter { it.keyText !in setOf("sync_path", "generate_dir") })
             }
         }
         var result = source

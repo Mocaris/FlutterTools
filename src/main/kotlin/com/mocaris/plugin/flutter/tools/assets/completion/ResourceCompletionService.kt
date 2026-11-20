@@ -26,6 +26,7 @@ import java.nio.file.Path
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
+import kotlin.time.Duration.Companion.milliseconds
 
 @Service(Service.Level.PROJECT)
 class ResourceCompletionService(private val project: Project) : Disposable {
@@ -78,7 +79,7 @@ class ResourceCompletionService(private val project: Project) : Disposable {
 
     private fun load(entry: Entry) {
         val job = scope.launch(start = CoroutineStart.LAZY) {
-            delay(100)
+            delay(100.milliseconds)
             val snapshot = readers.withPermit {
                 runInterruptible {
                     try {
@@ -110,7 +111,7 @@ class ResourceCompletionService(private val project: Project) : Disposable {
         if (!options.resourceAutoCompletion) return
         val stamp = editor.document.modificationStamp
         popupJob = scope.launch {
-            delay(options.resourceCompletionDelayMillis.toLong())
+            delay(options.resourceCompletionDelayMillis.milliseconds)
             val pending = coroutineContext[Job]!!
             ApplicationManager.getApplication().invokeLater {
                 if (!project.isDisposed && !editor.isDisposed && !pending.isCancelled && popupJob === pending &&

@@ -29,7 +29,7 @@ object ResourceDiagnostics {
         val packageName = (top.getKeyValueByKey("name")?.value as? YAMLScalar)?.textValue ?: "app"
         val resolve = PubspecAssets.resolver(root)
         // Scope metadata reuse to this inspection so subsequent edits still revalidate paths.
-        val allOutputs by lazy { AssetsGenerator.excludedOutputPaths(root, config) }
+        val allOutputs by lazy { AssetsGenerator.outputPaths(root, config) }
         val scanConfig = config.copy(excluded = emptySet())
         val resources = mutableListOf<PubspecAssets.Resolved>()
         val seen = mutableSetOf<Pair<PubspecAssets.Kind, Any>>()
@@ -107,13 +107,13 @@ object ResourceDiagnostics {
         // Render only validated resources; report generator naming collisions before output is touched.
         try {
             AssetsGenerator.validateClassName(config.outClass)
-            val outputs = AssetsGenerator.outputPaths(root, config)
+            AssetsGenerator.outputPaths(root, config)
             val excluded = AssetsGenerator.exclusionMatcher(config.excluded)
             val declarations = resources.map { it.declaration }.distinct().filterNot { excluded(it.path) }.groupBy { it.kind }
-            outputs.forEach { (kind, output) ->
+            PubspecAssets.Kind.values().forEach { kind ->
                 try {
-                    AssetsDartTemplate.part(root.resolve(config.outPath), output, config, kind,
-                        declarations[kind].orEmpty())
+                    AssetsDartTemplate.group(config, kind,
+                        declarations[kind].orEmpty(), packageName)
                 } catch (e: LocalizedException) {
                     issues.add(Issue(flutter.getKeyValueByKey(AssetsDartTemplate.resourceName(kind))?.key ?: entry, e.text))
                 }

@@ -4,7 +4,6 @@ import com.mocaris.plugin.flutter.tools.assets.PubspecAssets.Declaration
 import com.mocaris.plugin.flutter.tools.assets.PubspecAssets.Kind
 import com.mocaris.plugin.flutter.tools.assets.config.AssetsSyncConfig
 import com.mocaris.plugin.flutter.tools.core.localization.requireLocalized
-import java.nio.file.Path
 
 /** Dart rendering only; resource scanning and output protection stay in the generator. */
 internal object AssetsDartTemplate {
@@ -27,9 +26,23 @@ internal object AssetsDartTemplate {
 
     private fun quote(value: String) = "\"${AssetsGenerator.escapeDart(value)}\""
 
-    private fun meta(config: AssetsSyncConfig, resource: Declaration): String = buildString {
-        append("${config.outClass}ResourceMeta(${quote(resource.packageName)}, ${quote(resource.path)}, ${config.outClass}ResourceKind.${resourceName(resource.kind)}")
-        resource.sourcePackage?.let { append(", sourcePackage: ${quote(it)}") }
+    private fun metaClass(config: AssetsSyncConfig, kind: Kind) =
+        config.outClass + if (kind == Kind.FONT) "FontFaceMeta" else "AssetsMeta"
+
+    private fun StringBuilder.appendPackages(config: AssetsSyncConfig, resources: List<Declaration>, packageName: String): Map<String, String> {
+        val packages = (resources.map { it.packageName } + resources.mapNotNull { it.sourcePackage })
+            .distinct().sorted().mapIndexed { index, name -> name to if (name == packageName) "${config.outClass}.package" else "_package$index" }.toMap()
+        packages.forEach { (name, field) ->
+            if (name != packageName) appendLine("  static const String $field = ${quote(name)};")
+        }
+        return packages
+    }
+
+    private fun resource(config: AssetsSyncConfig, resource: Declaration, packages: Map<String, String>): String = buildString {
+        append("${metaClass(config, resource.kind)}(meta: (package: ${packages.getValue(resource.packageName)}, path: ${quote(resource.path)}, kind: ${quote(resourceName(resource.kind))}, sourcePackage: ${resource.sourcePackage?.let(packages::getValue) ?: "null"})")
+        resource.font?.let { font ->
+            append(", style: (family: _family, fontWeight: _flutter.FontWeight.w${font.weight}, fontStyle: _flutter.FontStyle.${font.style})")
+        }
         append(')')
     }
 
@@ -60,11 +73,7 @@ internal object AssetsDartTemplate {
         }
     }
 
-    fun part(entry: Path, output: Path, config: AssetsSyncConfig, kind: Kind, resources: List<Declaration>) = buildString {
-        appendLine(AssetsGenerator.GENERATED_MARKER)
-        appendLine("// dart format: off")
-        appendLine("part of ${quote(output.parent.relativize(entry).toString().replace('\\', '/'))};")
-        appendLine()
+    fun group(config: AssetsSyncConfig, kind: Kind, resources: List<Declaration>, packageName: String) = buildString {
         val group = groupClass(config, kind)
         val classes = mutableSetOf(group)
         if (kind == Kind.FONT) {
@@ -78,7 +87,7 @@ internal object AssetsDartTemplate {
             appendLine("}")
             families.entries.zip(types).forEach { (family, type) ->
                 appendLine()
-                appendFamily(config, type, family.value)
+                appendFamily(config, type, family.value, packageName)
             }
         } else if (kind == Kind.ASSET) {
             val tree = AssetDirectory()
@@ -88,7 +97,7 @@ internal object AssetsDartTemplate {
                 parts.dropLast(1).forEach { part -> directory = directory.children.getOrPut(part) { AssetDirectory() } }
                 directory.resources.add(resource)
             }
-            appendAssetDirectory(config, group, tree, classes)
+            appendAssetDirectory(config, group, tree, classes, packageName)
         } else {
             val sorted = resources.sortedBy { it.path }
             val names = resourceFieldNames(sorted, config.outExtension) { resource, extension ->
@@ -96,12 +105,12 @@ internal object AssetsDartTemplate {
             }
             appendLine("class $group {")
             appendLine("  const $group();")
+            val packages = appendPackages(config, sorted, packageName)
             sorted.zip(names).forEach { (resource, name) ->
-                appendLine("  final ${config.outClass}Resource $name = const ${config.outClass}Resource(${meta(config, resource)});")
+                appendLine("  final ${metaClass(config, kind)} $name = const ${resource(config, resource, packages)};")
             }
             appendLine("}")
         }
-        appendLine("// dart format: on")
     }
 
     private class AssetDirectory {
@@ -109,7 +118,7 @@ internal object AssetsDartTemplate {
         val resources = mutableListOf<Declaration>()
     }
 
-    private fun StringBuilder.appendAssetDirectory(config: AssetsSyncConfig, group: String, directory: AssetDirectory, classes: MutableSet<String>) {
+    private fun StringBuilder.appendAssetDirectory(config: AssetsSyncConfig, group: String, directory: AssetDirectory, classes: MutableSet<String>, packageName: String) {
         val children = directory.children.entries.map { it to AssetsGenerator.dartName(it.key, "directory") }
         fieldNames(children.map { it.second })
         val types = children.map { childClass(group, it.second, classes) }
@@ -121,17 +130,18 @@ internal object AssetsDartTemplate {
         appendLine("class $group {")
         appendLine("  const $group();")
         children.zip(types).forEach { (child, type) -> appendLine("  final $type ${child.second} = const $type();") }
+        val packages = appendPackages(config, directory.resources, packageName)
         directory.resources.zip(names).forEach { (resource, name) ->
-            appendLine("  final ${config.outClass}Resource $name = const ${config.outClass}Resource(${meta(config, resource)});")
+            appendLine("  final ${metaClass(config, Kind.ASSET)} $name = const ${resource(config, resource, packages)};")
         }
         appendLine("}")
         children.zip(types).forEach { (child, type) ->
             appendLine()
-            appendAssetDirectory(config, type, child.first.value, classes)
+            appendAssetDirectory(config, type, child.first.value, classes, packageName)
         }
     }
 
-    private fun StringBuilder.appendFamily(config: AssetsSyncConfig, className: String, resources: List<Declaration>) {
+    private fun StringBuilder.appendFamily(config: AssetsSyncConfig, className: String, resources: List<Declaration>, packageName: String) {
         val sorted = resources.sortedWith(compareBy({ it.font!!.weight }, { it.font!!.style == "italic" }, { it.path }))
         val family = sorted.first().font!!.family
         val bases = sorted.map { "w${it.font!!.weight}" + if (it.font.style == "italic") "Italic" else "" }
@@ -141,66 +151,69 @@ internal object AssetsDartTemplate {
             if (counts.getValue(base) == 1) base else base +
                 AssetsGenerator.fieldName(resource.packageName, resource.path, extension).replaceFirstChar { it.uppercaseChar() }
         }
-        val faceType = "${config.outClass}FontFace"
         appendLine("class $className {")
         appendLine("  const $className();")
-        appendLine("  final String family = ${quote(family)};")
-        appendLine("  final String package = ${quote(sorted.first().packageName)};")
-        appendLine("  final List<$faceType> faces = const [")
+        val packages = appendPackages(config, sorted, packageName)
+        appendLine("  static const String _family = ${quote(family)};")
+        appendLine("  String get family => _family;")
+        appendLine("  final List<${metaClass(config, Kind.FONT)}> faces = const [")
         sorted.forEach { resource ->
-            val font = resource.font!!
-            appendLine("    $faceType(${meta(config, resource)}, family: ${quote(family)}, fontWeight: _flutter.FontWeight.w${font.weight}, fontStyle: _flutter.FontStyle.${font.style}),")
+            appendLine("    ${resource(config, resource, packages)},")
         }
         appendLine("  ];")
-        names.forEachIndexed { index, name -> appendLine("  $faceType get $name => faces[$index];") }
+        names.forEachIndexed { index, name -> appendLine("  ${metaClass(config, Kind.FONT)} get $name => faces[$index];") }
         appendLine("}")
     }
 
-    fun entry(entry: Path, config: AssetsSyncConfig, parts: Collection<Path>, hasFonts: Boolean): String {
-        val type = config.outClass
-        return buildString {
-            appendLine(AssetsGenerator.GENERATED_MARKER)
-            appendLine("// dart format: off")
-            if (hasFonts) appendLine("import 'package:flutter/painting.dart' as _flutter;")
-            parts.forEach { appendLine("part ${quote(entry.parent.relativize(it).toString().replace('\\', '/'))};") }
-            appendLine()
-            appendLine("abstract class $type {")
-            Kind.values().forEach { appendLine("  static const ${resourceName(it)} = ${groupClass(config, it)}();") }
-            appendLine("}")
+    fun entry(config: AssetsSyncConfig, resources: List<Declaration>, packageName: String): String = buildString {
+        appendLine(AssetsGenerator.GENERATED_MARKER)
+        appendLine("// dart format: off")
+        val hasFonts = resources.any { it.kind == Kind.FONT }
+        if (hasFonts) appendLine("import 'package:flutter/painting.dart' as _flutter;")
+        appendLine()
+        val assetsMeta = metaClass(config, Kind.ASSET)
+        val fontFaceMeta = metaClass(config, Kind.FONT)
+        appendLine("typedef AssetsMeta = ({String package, String path, String kind, String? sourcePackage,});")
+        if (hasFonts) appendLine("typedef FontFaceStyle = ({String family, _flutter.FontWeight fontWeight, _flutter.FontStyle fontStyle,});")
+        appendLine()
+        appendLine("""
+            class $assetsMeta {
+              final AssetsMeta meta;
+
+              const $assetsMeta({required this.meta});
+
+              String get package => meta.package;
+              String get path => meta.path;
+              String get kind => meta.kind;
+              String? get sourcePackage => meta.sourcePackage;
+              String get fullPath => path.startsWith('packages/') ? path : 'packages/${'$'}{sourcePackage ?? package}/${'$'}path';
+            }
+        """.trimIndent())
+        if (hasFonts) {
             appendLine()
             appendLine("""
-                enum ${type}ResourceKind { assets, fonts, shaders }
+                class $fontFaceMeta extends $assetsMeta {
+                  final FontFaceStyle style;
 
-                class ${type}ResourceMeta {
-                  const ${type}ResourceMeta(this.package, this.path, this.kind, {this.sourcePackage});
-                  final String package;
-                  final String path;
-                  final ${type}ResourceKind kind;
-                  final String? sourcePackage;
-                }
+                  const $fontFaceMeta({required super.meta, required this.style});
 
-                class ${type}Resource {
-                  const ${type}Resource(this.meta);
-                  final ${type}ResourceMeta meta;
-                  String get path => meta.path;
+                  String get family => style.family;
+                  _flutter.FontWeight get fontWeight => style.fontWeight;
+                  _flutter.FontStyle get fontStyle => style.fontStyle;
+
+                  _flutter.TextStyle get textStyle => _flutter.TextStyle(fontFamily: style.family, fontWeight: style.fontWeight, fontStyle: style.fontStyle);
                 }
             """.trimIndent())
-            if (hasFonts) {
-                appendLine()
-                appendLine("""
-                    class ${type}FontFace extends ${type}Resource {
-                      const ${type}FontFace(super.meta, {
-                        required this.family,
-                        required this.fontWeight,
-                        this.fontStyle = _flutter.FontStyle.normal,
-                      });
-                      final String family;
-                      final _flutter.FontWeight fontWeight;
-                      final _flutter.FontStyle fontStyle;
-                    }
-                """.trimIndent())
-            }
-            appendLine("// dart format: on")
         }
+        appendLine()
+        appendLine("abstract class ${config.outClass} {")
+        appendLine("  static const String package = ${quote(packageName)};")
+        Kind.values().forEach { appendLine("  static const ${resourceName(it)} = ${groupClass(config, it)}();") }
+        appendLine("}")
+        Kind.values().forEach { kind ->
+            appendLine()
+            append(group(config, kind, resources.filter { it.kind == kind }, packageName))
+        }
+        appendLine("// dart format: on")
     }
 }

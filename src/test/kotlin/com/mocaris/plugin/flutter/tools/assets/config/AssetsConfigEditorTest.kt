@@ -6,18 +6,34 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class AssetsConfigEditorTest : YamlPsiTest() {
-    @Test fun generationDirectoryDefaultsAndPersistsInBlockAndFlowYaml() {
-        for (source in listOf("flutter_tools:\n  assets_sync:\n    watch: false # keep", "flutter_tools: {assets_sync: {watch: false}}")) {
-            val previous = AssetsGenerator.parseText(source)
-            assertEquals(DEFAULT_GENERATE_DIR, previous.generateDir)
-            val config = previous.copy(generateDir = "lib/custom resources")
-            val text = AssetsConfigEditor.update(yaml(source), config, previous)
+    @Test fun obsoleteGenerationDirectoryIsIgnoredAndRemovedWithItsComments() {
+        for (source in listOf(
+            "flutter_tools:\n  assets_sync:\n    generate_dir: lib/custom # keep\n    watch: false",
+            "flutter_tools: {assets_sync: {generate_dir: lib/custom, watch: false}}",
+            "flutter_tools: {assets_sync: {sync_path: [assets], generate_dir: lib/custom}}",
+            "flutter_tools: {assets_sync: {generate_dir: lib/custom, sync_path: [assets],}}",
+            "flutter_tools: {assets_sync: {sync_path: [assets], watch: false, generate_dir: lib/custom}}",
+            "flutter_tools: {assets_sync: {watch: false, generate_dir: lib/custom,}}",
+            "flutter_tools: {assets_sync: {watch: false, sync_path: [assets], generate_dir: lib/custom,}}",
+            "flutter_tools: {assets_sync: {generate_dir: lib/custom, watch: false,}}",
+            "flutter_tools: {assets_sync: {watch: false, generate_dir: lib/custom, # keep\n}}",
+            "flutter_tools:\n  assets_sync:\n    sync_path: [assets] # paths\n    generate_dir: lib/custom # keep\n    watch: false",
+            "flutter_tools: {assets_sync: {generate_dir: []}}")) {
+            val config = AssetsGenerator.parseText(source)
+            val text = AssetsConfigEditor.update(yaml(source), config, config)
+            assertFalse(text.contains("generate_dir")); assertFalse(text.contains("sync_path"))
             assertEquals(config, AssetsGenerator.parseText(text))
             if (source.contains("# keep")) assertTrue(text.contains("# keep"))
         }
-        for (value in listOf("''", "true", "[]")) {
-            assertThrows(IllegalArgumentException::class.java) {
-                AssetsGenerator.parseText("flutter_tools: {assets_sync: {generate_dir: $value}}")
+    }
+    @Test fun legacyNamedKeysOutsideAssetsSyncArePreservedWhenAppendingSections() {
+        for (key in listOf("sync_path", "generate_dir")) {
+            for (source in listOf("{$key: custom}", "{$key: custom,}",
+                "flutter_tools: {$key: custom}", "flutter_tools: {$key: custom,}")) {
+                val config = AssetsSyncConfig()
+                val text = AssetsConfigEditor.update(yaml(source), config, null)
+                assertEquals(config, AssetsGenerator.parseText(text))
+                assertTrue(text.contains("$key: custom"))
             }
         }
     }
@@ -90,14 +106,14 @@ class AssetsConfigEditorTest : YamlPsiTest() {
 
     @Test fun newConfigurationDoesNotContainGeneratorResourcePaths() {
         val text = AssetsConfigEditor.update(yaml(""), AssetsSyncConfig(), null)
-        assertFalse(text.contains("sync_path")); assertEquals(AssetsSyncConfig(), AssetsGenerator.parseText(text))
+        assertFalse(text.contains("generate_dir")); assertFalse(text.contains("sync_path")); assertEquals(AssetsSyncConfig(), AssetsGenerator.parseText(text))
     }
     @Test fun legacyFlowPathsAreRemovedWithoutCorruptingTheMapping() {
         for (value in listOf("{sync_path: [assets]}", "{sync_path: [assets], out_class: R}", "{out_class: R, sync_path: [assets]}", "{sync_path: [assets],}")) {
             val file = yaml("flutter_tools:\n  assets_sync: $value\n")
             val previous = AssetsGenerator.parseText(file.text)
             val text = AssetsConfigEditor.update(file, previous, previous)
-            assertFalse(text.contains("sync_path")); assertEquals(previous, AssetsGenerator.parseText(text))
+            assertFalse(text.contains("generate_dir")); assertFalse(text.contains("sync_path")); assertEquals(previous, AssetsGenerator.parseText(text))
         }
     }
 

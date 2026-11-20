@@ -19,14 +19,14 @@ class AssetsGeneratorTest {
 
     @Before fun defaultPubspec() { pubspec("assets/") }
     private fun pubspec(vararg paths: String) {
-        File(folder.root, "pubspec.yaml").writeText("name: sample\nflutter:\n  assets:\n" + paths.joinToString("\n", postfix = "\n") { "    - '${it.replace("'", "''")}'" })
+        File(folder.root, "pubspec.yaml").writeText("environment: {sdk: ^3.0.0}\nname: sample\nflutter:\n  assets:\n" + paths.joinToString("\n", postfix = "\n") { "    - '${it.replace("'", "''")}'" })
     }
 
     @Test fun deterministicOutputAndDensityVariants() {
         asset("assets/z.png"); asset("assets/a.png"); asset("assets/2.0x/a.png"); asset("assets/3x/a.png")
         val text = generateText(folder.root.path, config())
-        assertTrue(text.indexOf("RResource a =") < text.indexOf("RResource z ="))
-        assertEquals(1, Regex("final RResource a").findAll(text).count())
+        assertTrue(text.indexOf("RAssetsMeta a =") < text.indexOf("RAssetsMeta z ="))
+        assertEquals(1, Regex("RAssetsMeta a").findAll(text).count())
         assertFalse(text.contains("2.0x"))
         assertTrue(text.contains("abstract class R"))
     }
@@ -34,19 +34,19 @@ class AssetsGeneratorTest {
         asset("assets/logo.png"); asset("assets/logo.svg"); asset("assets/banner.png")
         val output = asset("lib/r.dart").apply { writeText("existing content") }
         val text = generateText(folder.root.path, config())
-        assertTrue(text.contains("RResource logoPng =")); assertTrue(text.contains("RResource logoSvg ="))
-        assertTrue(text.contains("RResource banner =")); assertFalse(text.contains("RResource bannerPng ="))
+        assertTrue(text.contains("RAssetsMeta logoPng =")); assertTrue(text.contains("RAssetsMeta logoSvg ="))
+        assertTrue(text.contains("RAssetsMeta banner =")); assertFalse(text.contains("RAssetsMeta bannerPng ="))
         assertEquals("existing content", output.readText())
         val explicit = generateText(folder.root.path, config(true))
-        assertTrue(explicit.contains("RResource bannerPng ="))
+        assertTrue(explicit.contains("RAssetsMeta bannerPng ="))
     }
 
     @Test fun extensionSuffixesCannotClashWithExistingFields() {
         asset("assets/logo.png"); asset("assets/logo.svg"); asset("assets/logo_png.jpg")
         val text = generateText(folder.root.path, config())
-        assertTrue(text.contains("RResource logoPng ="))
-        assertTrue(text.contains("RResource logoSvg ="))
-        assertTrue(text.contains("RResource logoPngJpg ="))
+        assertTrue(text.contains("RAssetsMeta logoPng ="))
+        assertTrue(text.contains("RAssetsMeta logoSvg ="))
+        assertTrue(text.contains("RAssetsMeta logoPngJpg ="))
         pubspec("assets/logo_png.jpg", "assets/logo.svg", "assets/logo.png")
         assertEquals(text, generateText(folder.root.path, config()))
     }
@@ -61,12 +61,12 @@ class AssetsGeneratorTest {
 
     @Test fun renamedAndRemovedAssetsDisappearOnNextGeneration() {
         val file = asset("assets/old.png")
-        assertTrue(generateText(folder.root.path, config()).contains("RResource old ="))
+        assertTrue(generateText(folder.root.path, config()).contains("RAssetsMeta old ="))
         file.renameTo(File(file.parentFile, "new.png"))
         val renamed = generateText(folder.root.path, config())
-        assertTrue(renamed.contains("RResource assetNew =")); assertFalse(renamed.contains("RResource old ="))
+        assertTrue(renamed.contains("RAssetsMeta assetNew =")); assertFalse(renamed.contains("RAssetsMeta old ="))
         File(file.parentFile, "new.png").delete()
-        assertFalse(generateText(folder.root.path, config()).contains("final RResource "))
+        assertFalse(generateText(folder.root.path, config()).contains("final RAssetsMeta "))
     }
     @Test fun globsAndDirectoryBoundaries() {
         assertTrue(AssetsGenerator.matchesExcluded("assets/icon/logo.png", "assets/icon/"))
@@ -88,7 +88,7 @@ class AssetsGeneratorTest {
     @Test fun excludedFilesAndGeneratedOutputAreOmitted() {
         asset("assets/a.png"); asset("assets/.DS_Store"); asset("assets/r.dart")
         val text = generateText(folder.root.path, config(excluded = setOf(".DS_Store")).copy(outPath = "assets/r.dart"))
-        assertTrue(text.contains("RResource a =")); assertFalse(text.contains("DS_Store")); assertFalse(text.contains("RResource r ="))
+        assertTrue(text.contains("RAssetsMeta a =")); assertFalse(text.contains("DS_Store")); assertFalse(text.contains("RAssetsMeta r ="))
     }
     @Test fun invalidDensityDirectoryIsNotMerged() {
         asset("assets/2a0x/a.png")
@@ -106,10 +106,10 @@ class AssetsGeneratorTest {
         pubspec("missing/")
         assertThrows(IllegalArgumentException::class.java) { generateText(folder.root.path, config()) }
     }
-    @Test fun coreTypesAndImportPrefixCannotBeUsedAsTheOutputClass() {
+    @Test fun coreTypesAndGeneratedNamesCannotBeUsedAsTheOutputClass() {
         asset("assets/logo.png")
         val output = asset("lib/r.dart").apply { writeText("existing content") }
-        for (name in listOf("String", "List", "Object", "_flutter")) {
+        for (name in listOf("String", "List", "Object", "_flutter", "package", "AssetsMeta", "FontFaceStyle")) {
             val error = assertThrows(IllegalArgumentException::class.java) {
                 generateText(folder.root.path, config().copy(outClass = name))
             }
@@ -136,7 +136,7 @@ class AssetsGeneratorTest {
         pubspec("assets/logo.png")
         val text = generateText(folder.root.path, config())
         assertTrue(text.contains("assets/logo.png")); assertFalse(text.contains("2.0x"))
-        assertFalse(generateText(folder.root.path, config(), "name: sample\nflutter:\n  assets: [assets/]\n").contains("logo.png"))
+        assertFalse(generateText(folder.root.path, config(), "environment: {sdk: ^3.0.0}\nname: sample\nflutter:\n  assets: [assets/]\n").contains("logo.png"))
     }
     @Test fun explicitlyDeclaredVariantAndOrdinaryFileKeepTheirExactKeys() {
         asset("assets/2.0x/logo.png"); asset("assets/2.0x/data.json")
@@ -155,6 +155,7 @@ class AssetsGeneratorTest {
     @Test fun fontAndShaderPathsComeFromTheirPubspecSections() {
         asset("fonts/Roboto.ttf"); asset("shaders/effect.frag"); asset("assets/logo.png")
         val yaml = """
+            environment: {sdk: ^3.0.0}
             name: sample
             flutter:
               assets:
@@ -179,12 +180,12 @@ class AssetsGeneratorTest {
     }
     @Test fun unsavedPubspecSnapshotIsUsedForGeneration() {
         asset("assets/saved.png"); asset("other/edited.png")
-        val text = generateText(folder.root.path, config(), "name: sample\nflutter:\n  assets: [other/]\n")
+        val text = generateText(folder.root.path, config(), "environment: {sdk: ^3.0.0}\nname: sample\nflutter:\n  assets: [other/]\n")
         assertTrue(text.contains("other/edited.png")); assertFalse(text.contains("assets/saved.png"))
     }
     @Test fun singleImageDeclarationWatchesItsParentForVariantChanges() {
         asset("assets/2.0x/logo.png")
-        val resources = PubspecAssets.resolve(folder.root.toPath(), PubspecAssets.parse("name: sample\nflutter:\n  assets: [assets/logo.png]\n"))
+        val resources = PubspecAssets.resolve(folder.root.toPath(), PubspecAssets.parse("environment: {sdk: ^3.0.0}\nname: sample\nflutter:\n  assets: [assets/logo.png]\n"))
         assertEquals(File(folder.root, "assets").toPath(), resources.single().watchPath)
     }
     @Test fun externalPackageResourceUsesPackageConfigAndPreservesBundleKey() {
@@ -197,27 +198,27 @@ class AssetsGeneratorTest {
         assertTrue(image.exists())
     }
     @Test fun noDeclaredResourcesGeneratesAnEmptyContainer() {
-        val text = generateText(folder.root.path, config(), "name: sample\n")
-        assertTrue(text.contains("abstract class R")); assertFalse(text.contains("final RResource "))
+        val text = generateText(folder.root.path, config(), "environment: {sdk: ^3.0.0}\nname: sample\n")
+        assertTrue(text.contains("abstract class R")); assertFalse(text.contains("final RAssetsMeta "))
     }
 
     @Test fun fontAndShaderDeclarationsCannotBeDirectories() {
-        assertThrows(IllegalArgumentException::class.java) { PubspecAssets.parse("name: sample\nflutter:\n  shaders: [shaders/]\n") }
-        assertThrows(IllegalArgumentException::class.java) { PubspecAssets.parse("name: sample\nflutter:\n  fonts:\n    - family: Demo\n      fonts:\n        - asset: fonts/\n") }
+        assertThrows(IllegalArgumentException::class.java) { PubspecAssets.parse("environment: {sdk: ^3.0.0}\nname: sample\nflutter:\n  shaders: [shaders/]\n") }
+        assertThrows(IllegalArgumentException::class.java) { PubspecAssets.parse("environment: {sdk: ^3.0.0}\nname: sample\nflutter:\n  fonts:\n    - family: Demo\n      fonts:\n        - asset: fonts/\n") }
     }
     @Test fun directoryKeysAreNormalizedAndDeduplicated() {
         asset("assets/logo.png")
         pubspec("./assets/", "assets/")
         val text = generateText(folder.root.path, config())
         assertFalse(text.contains("./assets/"))
-        assertEquals(1, Regex("final RResource logo").findAll(text).count())
+        assertEquals(1, Regex("RAssetsMeta logo").findAll(text).count())
     }
 
     @Test fun extensionPunctuationProducesValidFields() {
         asset("assets/logo.foo-bar"); asset("assets/.hidden-file")
         val text = generateText(folder.root.path, config(true))
-        assertTrue(text.contains("RResource logoFooBar ="))
-        assertTrue(text.contains("RResource hiddenFile ="))
+        assertTrue(text.contains("RAssetsMeta logoFooBar ="))
+        assertTrue(text.contains("RAssetsMeta hiddenFile ="))
     }
 
     @Test fun outputCannotOverwriteConfigurationOrExplicitResources() {
@@ -243,7 +244,7 @@ class AssetsGeneratorTest {
 
     @Test fun singleFileWatchIncludesOnlyItsFileAndVariants() {
         asset("assets/logo.png")
-        val resource = PubspecAssets.resolve(folder.root.toPath(), PubspecAssets.parse("name: sample\nflutter:\n  assets: [assets/logo.png]\n")).single()
+        val resource = PubspecAssets.resolve(folder.root.toPath(), PubspecAssets.parse("environment: {sdk: ^3.0.0}\nname: sample\nflutter:\n  assets: [assets/logo.png]\n")).single()
         fun affected(path: String) = resource.affectedBy(File(folder.root, path).path)
         assertTrue(affected("assets/logo.png"))
         assertTrue(affected("assets/2.0x/logo.png"))
@@ -256,7 +257,7 @@ class AssetsGeneratorTest {
 
     @Test fun directoryWatchIgnoresOrdinaryNestedFiles() {
         asset("assets/logo.png")
-        val resource = PubspecAssets.resolve(folder.root.toPath(), PubspecAssets.parse("name: sample\nflutter:\n  assets: [assets/]\n")).single()
+        val resource = PubspecAssets.resolve(folder.root.toPath(), PubspecAssets.parse("environment: {sdk: ^3.0.0}\nname: sample\nflutter:\n  assets: [assets/]\n")).single()
         assertTrue(resource.affectedBy(File(folder.root, "assets/logo.png").path))
         assertTrue(resource.affectedBy(folder.root.path))
         assertFalse(resource.affectedBy(File(folder.root, "assets/icons/logo.png").path))
@@ -276,12 +277,32 @@ class AssetsGeneratorTest {
     @Test fun fontAndShaderFilesDoNotUseResolutionFallback() {
         asset("fonts/2.0x/demo.ttf")
         assertThrows(IllegalArgumentException::class.java) {
-            generateText(folder.root.path, config(), "name: sample\nflutter:\n  fonts:\n    - family: Demo\n      fonts: [{asset: fonts/demo.ttf}]\n")
+            generateText(folder.root.path, config(), "environment: {sdk: ^3.0.0}\nname: sample\nflutter:\n  fonts:\n    - family: Demo\n      fonts: [{asset: fonts/demo.ttf}]\n")
         }
         asset("shaders/2.0x/demo.frag")
         assertThrows(IllegalArgumentException::class.java) {
-            generateText(folder.root.path, config(), "name: sample\nflutter:\n  shaders: [shaders/demo.frag]\n")
+            generateText(folder.root.path, config(), "environment: {sdk: ^3.0.0}\nname: sample\nflutter:\n  shaders: [shaders/demo.frag]\n")
         }
+    }
+
+    @Test fun generationRequiresDart3LanguageBeforeReplacingOutput() {
+        asset("assets/logo.png")
+        val output = asset("lib/r.dart").apply { writeText(AssetsGenerator.GENERATED_MARKER + "\nold output\n") }
+        for (constraint in listOf("^2.19.0", ">=2.12.0 <4.0.0", "<3.0.0", "any", "invalid")) {
+            val error = assertThrows(IllegalArgumentException::class.java) {
+                AssetsGenerator.generate(folder.root.path, config(), "name: sample\nenvironment: {sdk: '$constraint'}\n")
+            }
+            assertEquals("error.resourceLanguage", (error as com.mocaris.plugin.flutter.tools.core.localization.LocalizedException).text.key)
+            assertTrue(output.readText().contains("old output"))
+        }
+        assertThrows(IllegalArgumentException::class.java) { AssetsGenerator.generate(folder.root.path, config(), "name: sample") }
+        for (constraint in listOf("^3.0.0", ">=3.0.0 <4.0.0", "3.9.0")) {
+            assertTrue(AssetsGenerator.generate(folder.root.path, config(), "name: sample\nenvironment: {sdk: '$constraint'}\n").values.single().contains("abstract class R"))
+        }
+        asset(".dart_tool/package_config.json").writeText("""{"packages":[{"name":"sample","languageVersion":"2.19"}]}""")
+        assertThrows(IllegalArgumentException::class.java) { generateText(folder.root.path, config()) }
+        asset(".dart_tool/package_config.json").writeText("""{"packages":[{"name":"sample","languageVersion":"3.0"}]}""")
+        assertTrue(generateText(folder.root.path, config()).contains("abstract class R"))
     }
 
 }

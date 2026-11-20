@@ -25,4 +25,12 @@ class ResourceStringTest {
         assertNull(ResourceString.parse("r'assets/'")!!.encode("assets/it's.png"))
         assertEquals("assets/${'$'}a.png", ResourceString.parse("r'assets/${'$'}a.png'")!!.value)
     }
+    @Test fun escapedPathsDecodeUnicodeAndRejectMalformedOrExcessiveInput() {
+        assertEquals("assets/logo.png", ResourceString.parse("'assets/lo\\x67o.png'")!!.value)
+        assertEquals("assets/logo.png", ResourceString.parse("'assets/lo\\u0067o.png'")!!.value)
+        assertNull(ResourceString.parse("'assets/\\xZZ.png'"))
+        assertNull(ResourceString.parse("'assets/\\u006.png'"))
+        assertNull(ResourceString.parse("'" + "\\\"".repeat(100_000)))
+    }
+
 }

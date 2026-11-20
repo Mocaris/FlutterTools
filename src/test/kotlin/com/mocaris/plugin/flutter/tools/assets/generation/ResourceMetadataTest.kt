@@ -15,17 +15,17 @@ class ResourceMetadataTest {
         Files.createDirectories(it.parent)
         Files.writeString(it, "resource")
     }
-    private fun parse(yaml: String) = PubspecAssets.parse("name: sample\n$yaml")
+    private fun parse(yaml: String) = PubspecAssets.parse("environment: {sdk: ^3.0.0}\nname: sample\n$yaml")
     private fun generate(yaml: String, config: AssetsSyncConfig = AssetsSyncConfig()) =
-        AssetsGenerator.generate(root.toString(), config, "name: sample\n$yaml")
+        AssetsGenerator.generate(root.toString(), config, "environment: {sdk: ^3.0.0}\nname: sample\n$yaml")
     private fun fonts(faces: String, family: String = "Demo") =
         "flutter:\n  fonts:\n    - family: $family\n      fonts: $faces\n"
 
     @Test fun metadataUsesPubspecPackageInsteadOfDirectoryName() {
         file("assets/logo.png"); file("shaders/effect.frag")
         val contents = generate("flutter:\n  assets: [assets/]\n  shaders: [shaders/effect.frag]\n")
-        assertTrue(contents.getValue(root.resolve("lib/generate/assets.g.dart")).contains("RResourceMeta(\"sample\", \"assets/logo.png\", RResourceKind.assets)"))
-        assertTrue(contents.getValue(root.resolve("lib/generate/shaders.g.dart")).contains("RResourceMeta(\"sample\", \"shaders/effect.frag\", RResourceKind.shaders)"))
+        assertTrue(contents.getValue(root.resolve("lib/r.dart")).contains("(package: R.package, path: \"assets/logo.png\", kind: \"assets\", sourcePackage: null)"))
+        assertTrue(contents.getValue(root.resolve("lib/r.dart")).contains("(package: R.package, path: \"shaders/effect.frag\", kind: \"shaders\", sourcePackage: null)"))
         assertFalse(contents.getValue(root.resolve("lib/r.dart")).contains("package:flutter"))
     }
 
@@ -37,17 +37,19 @@ class ResourceMetadataTest {
         val resource = parse("flutter:\n  assets: [packages/icons/images/]\n").single()
         assertEquals("sample", resource.packageName)
         assertEquals("icons", resource.sourcePackage)
-        val output = generate("flutter:\n  assets: [packages/icons/images/]\n").getValue(root.resolve("lib/generate/assets.g.dart"))
-        assertTrue(output.contains("RResourceMeta(\"sample\", \"packages/icons/images/logo.png\", RResourceKind.assets, sourcePackage: \"icons\")"))
+        val output = generate("flutter:\n  assets: [packages/icons/images/]\n").getValue(root.resolve("lib/r.dart"))
+        assertTrue(output.contains("(package: R.package, path: \"packages/icons/images/logo.png\", kind: \"assets\", sourcePackage: _package0)"))
     }
 
     @Test fun changedPubspecNameChangesMetadataWithUnsavedSnapshot() {
         file("assets/logo.png")
         val yaml = "flutter:\n  assets: [assets/logo.png]\n"
         val before = generate(yaml)
-        val after = AssetsGenerator.generate(root.toString(), AssetsSyncConfig(), "name: renamed_package\n$yaml")
+        val after = AssetsGenerator.generate(root.toString(), AssetsSyncConfig(), "environment: {sdk: ^3.0.0}\nname: renamed_package\n$yaml")
         assertNotEquals(before, after)
-        assertTrue(after.getValue(root.resolve("lib/generate/assets.g.dart")).contains("RResourceMeta(\"renamed_package\","))
+        assertTrue(after.values.single().contains("static const String package = \"renamed_package\";"))
+        assertFalse(after.values.single().contains("R._package"))
+        assertTrue(after.getValue(root.resolve("lib/r.dart")).contains("(package: R.package,"))
     }
 
     @Test fun invalidPackageNamesDoNotGenerateUnknownMetadata() {
@@ -87,10 +89,15 @@ class ResourceMetadataTest {
         assertEquals(4, parse(yaml).size)
         val generated = generate(yaml)
         val entry = generated.getValue(root.resolve("lib/r.dart"))
-        assertTrue(entry.contains("const RFontFace(super.meta, {"))
+        assertTrue(entry.contains("class RFontFaceMeta extends RAssetsMeta"))
+        assertTrue(entry.contains("_flutter.FontWeight fontWeight"))
         assertFalse(entry.contains(": super(meta)"))
-        val output = generated.getValue(root.resolve("lib/generate/fonts.g.dart"))
-        assertEquals(4, Regex("RFontFace\\(RResourceMeta").findAll(output).count())
+        val output = generated.getValue(root.resolve("lib/r.dart"))
+        assertEquals(4, Regex("family: _family, fontWeight:").findAll(output).count())
+        for (family in listOf("First", "Second")) {
+            assertEquals(1, Regex("\"$family\"").findAll(output).count())
+            assertTrue(output.contains("static const String _family = \"$family\";"))
+        }
         assertTrue(output.contains("get w400 =>")); assertTrue(output.contains("get w700 =>"))
         assertTrue(output.contains("get w400Italic =>"))
         assertTrue(output.contains("class _RFontsFirst")); assertTrue(output.contains("class _RFontsSecond"))
@@ -106,9 +113,10 @@ class ResourceMetadataTest {
                 - family: Demo
                   fonts: [{asset: fonts/cjk.ttf}]
         """.trimIndent()
-        val output = generate(yaml).getValue(root.resolve("lib/generate/fonts.g.dart"))
+        val output = generate(yaml).getValue(root.resolve("lib/r.dart"))
         assertEquals(1, Regex("class _RFontsDemo ").findAll(output).count())
-        assertEquals(2, Regex("RFontFace\\(RResourceMeta").findAll(output).count())
+        assertEquals(2, Regex("family: _family, fontWeight:").findAll(output).count())
+        assertEquals(1, Regex("\"Demo\"").findAll(output).count())
         assertTrue(output.contains("get w400FontsCjk => faces[0]"))
         assertTrue(output.contains("get w400FontsLatin => faces[1]"))
     }
@@ -124,10 +132,10 @@ class ResourceMetadataTest {
         file("fonts/a.ttf"); file("fonts/b.ttf")
         val yaml = fonts("[{asset: fonts/a.ttf}, {asset: fonts/b.ttf, weight: 700}]")
         val partial = generate(yaml, AssetsSyncConfig(excluded = setOf("fonts/b.ttf")))
-        val fontOutput = partial.getValue(root.resolve("lib/generate/fonts.g.dart"))
+        val fontOutput = partial.getValue(root.resolve("lib/r.dart"))
         assertTrue(fontOutput.contains("get w400 =>")); assertFalse(fontOutput.contains("fonts/b.ttf"))
         val empty = generate(yaml, AssetsSyncConfig(excluded = setOf("fonts/")))
-        assertFalse(empty.getValue(root.resolve("lib/generate/fonts.g.dart")).contains("class _RFontsDemo"))
+        assertFalse(empty.getValue(root.resolve("lib/r.dart")).contains("class _RFontsDemo"))
         assertFalse(empty.getValue(root.resolve("lib/r.dart")).contains("package:flutter"))
     }
 
@@ -159,15 +167,46 @@ class ResourceMetadataTest {
     @Test fun duplicateFontFieldNamesCanIncludeExtensions() {
         file("fonts/a.ttf"); file("fonts/a.otf")
         val yaml = fonts("[{asset: fonts/a.ttf}, {asset: fonts/a.otf}]")
-        val output = generate(yaml).getValue(root.resolve("lib/generate/fonts.g.dart"))
+        val output = generate(yaml).getValue(root.resolve("lib/r.dart"))
         assertTrue(output.contains("get w400FontsAOtf =>")); assertTrue(output.contains("get w400FontsATtf =>"))
     }
     @Test fun shaderExtensionConflictsAreResolvedAutomatically() {
         file("shaders/effect.frag"); file("shaders/effect.glsl")
         val output = generate("flutter:\n  shaders: [shaders/effect.frag, shaders/effect.glsl]\n")
-            .getValue(root.resolve("lib/generate/shaders.g.dart"))
-        assertTrue(output.contains("RResource shadersEffectFrag ="))
-        assertTrue(output.contains("RResource shadersEffectGlsl ="))
+            .getValue(root.resolve("lib/r.dart"))
+        assertTrue(output.contains("RAssetsMeta shadersEffectFrag ="))
+        assertTrue(output.contains("RAssetsMeta shadersEffectGlsl ="))
+    }
+
+    @Test fun fontMetadataSharesPackageConstantsAndKeepsTheFamilyPackageProperty() {
+        file("fonts/local.ttf"); file("packages/icons/regular.ttf"); file("packages/icons/italic.ttf")
+        val first = "{asset: fonts/local.ttf}"
+        val second = "{asset: packages/icons/regular.ttf, weight: 700}"
+        val third = "{asset: packages/icons/italic.ttf, weight: 700, style: italic}"
+        val output = generate(fonts("[$first, $second, $third]")).values.single()
+        assertEquals(1, Regex("\"sample\"").findAll(output).count())
+        assertEquals(1, Regex("\"icons\"").findAll(output).count())
+        assertEquals(3, Regex("package: R\\.package,").findAll(output).count())
+        assertEquals(2, Regex("sourcePackage: _package0").findAll(output).count())
+        assertFalse(output.contains("String get package => R."))
+        assertEquals(output, generate(fonts("[$third, $first, $second]")).values.single())
+    }
+
+    @Test fun packageConstantsUseSafeIdentifiersAndShareIdenticalOwnerAndSourceNames() {
+        file("packages/a-b/regular.ttf"); file("packages/a_b/bold.ttf"); file("packages/sample/italic.ttf")
+        val output = generate(fonts("[{asset: packages/a-b/regular.ttf}, {asset: packages/a_b/bold.ttf, weight: 700}, {asset: packages/sample/italic.ttf, style: italic}]")).values.single()
+        assertTrue(output.contains("static const String _package0 = \"a-b\";"))
+        assertTrue(output.contains("static const String _package1 = \"a_b\";"))
+        assertFalse(output.contains("R._package"))
+        assertEquals(1, Regex("\"sample\"").findAll(output).count())
+        assertTrue(output.contains("package: R.package, path: \"packages/sample/italic.ttf\", kind: \"fonts\", sourcePackage: R.package"))
+    }
+    @Test fun packageNamedFontFamiliesKeepTheirOriginalPropertyName() {
+        file("fonts/regular.ttf")
+        val output = generate(fonts("[{asset: fonts/regular.ttf}]", "Package")).values.single()
+        assertTrue(output.contains("final _RFontsPackage package = const _RFontsPackage();"))
+        assertTrue(output.contains("static const String _family = \"Package\";"))
+        assertFalse(output.contains("final String package ="))
     }
 
 }
