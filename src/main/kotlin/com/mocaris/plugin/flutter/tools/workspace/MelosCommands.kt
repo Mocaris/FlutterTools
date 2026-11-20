@@ -7,18 +7,18 @@ import com.intellij.execution.process.ProcessAdapter
 import com.intellij.execution.process.ProcessEvent
 import com.intellij.notification.NotificationType
 import com.intellij.openapi.application.ApplicationManager
-import com.intellij.openapi.application.WriteIntentReadAction
 import com.intellij.openapi.application.ModalityState
-import com.intellij.openapi.fileEditor.FileDocumentManager
+import com.intellij.openapi.application.WriteIntentReadAction
 import com.intellij.openapi.diagnostic.Logger
+import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.SystemInfo
 import com.intellij.openapi.vfs.VirtualFile
-import com.mocaris.plugin.flutter.tools.core.FlutterToolsBundle.message
 import com.mocaris.plugin.flutter.tools.core.FlutterToolsNotifications
 import com.mocaris.plugin.flutter.tools.core.WorkspaceLayout
 import com.mocaris.plugin.flutter.tools.core.YamlSupport
-import com.mocaris.plugin.flutter.tools.dependencies.FlutterPubGetRunner
+import com.mocaris.plugin.flutter.tools.core.localization.FlutterToolsBundle.message
+import com.mocaris.plugin.flutter.tools.dependencies.commands.FlutterPubGetRunner
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.concurrent.ConcurrentHashMap
@@ -27,7 +27,7 @@ internal object MelosCommands {
     data class Command(val name: String, val arguments: List<String>)
     private val running = ConcurrentHashMap.newKeySet<String>()
 
-    fun choices(config: Map<*, *>): List<Command> = listOf(Command("bootstrap", listOf("bootstrap")), Command("clean", listOf("clean"))) +
+    fun scripts(config: Map<*, *>): List<Command> =
         (config["scripts"] as? Map<*, *>)?.keys.orEmpty().filterIsInstance<String>()
             .filter { it.matches(Regex("[A-Za-z0-9_][A-Za-z0-9_.:-]*")) }.sorted().map { Command(it, listOf("run", it, "--no-select")) }
 

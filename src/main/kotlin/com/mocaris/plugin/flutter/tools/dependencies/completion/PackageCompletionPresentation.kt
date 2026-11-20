@@ -1,8 +1,8 @@
 package com.mocaris.plugin.flutter.tools.dependencies.completion
 
 import com.intellij.codeInsight.lookup.LookupElementBuilder
-import com.mocaris.plugin.flutter.tools.core.FlutterToolsBundle
 import com.mocaris.plugin.flutter.tools.core.FlutterToolsIcons
+import com.mocaris.plugin.flutter.tools.core.localization.FlutterToolsBundle
 import java.time.Duration
 import java.time.Instant
 import java.util.Locale

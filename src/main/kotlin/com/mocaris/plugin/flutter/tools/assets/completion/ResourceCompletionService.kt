@@ -1,6 +1,5 @@
 package com.mocaris.plugin.flutter.tools.assets.completion
 
-import com.mocaris.plugin.flutter.tools.core.DartPackageContext
 import com.intellij.codeInsight.AutoPopupController
 import com.intellij.codeInsight.daemon.DaemonCodeAnalyzer
 import com.intellij.openapi.Disposable
@@ -18,14 +17,15 @@ import com.intellij.openapi.vfs.VirtualFileManager
 import com.intellij.openapi.vfs.newvfs.BulkFileListener
 import com.intellij.openapi.vfs.newvfs.events.VFileEvent
 import com.intellij.psi.PsiManager
-import com.mocaris.plugin.flutter.tools.core.VfsEventPaths
 import com.mocaris.plugin.flutter.tools.assets.PubspecAssets
-import com.mocaris.plugin.flutter.tools.core.FlutterToolsSettings
+import com.mocaris.plugin.flutter.tools.core.DartPackageContext
+import com.mocaris.plugin.flutter.tools.core.VfsEventPaths
+import com.mocaris.plugin.flutter.tools.core.settings.FlutterToolsSettings
+import java.nio.file.Files
+import java.nio.file.Path
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
-import java.nio.file.Files
-import java.nio.file.Path
 
 @Service(Service.Level.PROJECT)
 class ResourceCompletionService(private val project: Project) : Disposable {

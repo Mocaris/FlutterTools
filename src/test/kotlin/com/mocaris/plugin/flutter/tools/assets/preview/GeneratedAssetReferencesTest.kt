@@ -1,11 +1,13 @@
 package com.mocaris.plugin.flutter.tools.assets.preview
 
 import com.mocaris.plugin.flutter.tools.assets.*
+import com.mocaris.plugin.flutter.tools.assets.config.AssetsSyncConfig
+import com.mocaris.plugin.flutter.tools.assets.generation.AssetsGenerator
+import java.nio.file.Files
 import org.junit.Assert.*
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
-import java.nio.file.Files
 
 class GeneratedAssetReferencesTest {
     @get:Rule val folder = TemporaryFolder()

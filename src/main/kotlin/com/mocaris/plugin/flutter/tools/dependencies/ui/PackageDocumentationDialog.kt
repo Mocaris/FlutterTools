@@ -1,6 +1,5 @@
 package com.mocaris.plugin.flutter.tools.dependencies.ui
 
-import com.mocaris.plugin.flutter.tools.core.ui.ContentScrollPane
 import com.intellij.ide.BrowserUtil
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.service
@@ -10,18 +9,19 @@ import com.intellij.openapi.util.text.StringUtil
 import com.intellij.ui.components.*
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.UIUtil
-import com.mocaris.plugin.flutter.tools.core.FlutterToolsBundle
-import com.mocaris.plugin.flutter.tools.core.FlutterToolsBundle.localized
-import com.mocaris.plugin.flutter.tools.core.FlutterToolsBundle.message
-import com.mocaris.plugin.flutter.tools.core.LanguageListener
-import com.mocaris.plugin.flutter.tools.dependencies.PackageDocuments
-import com.mocaris.plugin.flutter.tools.dependencies.search.PackageSearchService
-import kotlinx.coroutines.*
+import com.mocaris.plugin.flutter.tools.core.localization.FlutterToolsBundle
+import com.mocaris.plugin.flutter.tools.core.localization.FlutterToolsBundle.localized
+import com.mocaris.plugin.flutter.tools.core.localization.FlutterToolsBundle.message
+import com.mocaris.plugin.flutter.tools.core.localization.LanguageListener
+import com.mocaris.plugin.flutter.tools.core.ui.ContentScrollPane
+import com.mocaris.plugin.flutter.tools.dependencies.pub.PackageDocuments
+import com.mocaris.plugin.flutter.tools.dependencies.pub.PackageSearchService
 import java.awt.BorderLayout
 import java.awt.Dimension
 import java.awt.FlowLayout
 import javax.swing.*
 import javax.swing.event.HyperlinkEvent
+import kotlinx.coroutines.*
 
 /** Documents load on demand; closing the viewer cancels requests and releases rendered HTML. */
 class PackageDocumentationDialog(private val project: Project, private val name: String, version: String? = null,

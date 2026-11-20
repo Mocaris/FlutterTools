@@ -5,15 +5,17 @@ import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.testFramework.LightVirtualFile
 import com.mocaris.plugin.flutter.tools.assets.*
 import com.mocaris.plugin.flutter.tools.assets.completion.ResourcePathIndex
+import com.mocaris.plugin.flutter.tools.assets.config.AssetsSyncConfig
+import com.mocaris.plugin.flutter.tools.assets.generation.AssetsGenerator
 import com.mocaris.plugin.flutter.tools.assets.preview.*
-import com.mocaris.plugin.flutter.tools.dependencies.FlutterPubGetRunner
-import com.mocaris.plugin.flutter.tools.dependencies.search.ProjectSdkReader
+import com.mocaris.plugin.flutter.tools.dependencies.commands.FlutterPubGetRunner
+import com.mocaris.plugin.flutter.tools.dependencies.sdk.ProjectSdkReader
+import java.nio.file.Files
+import java.nio.file.Path
 import org.junit.Assert.*
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
-import java.nio.file.Files
-import java.nio.file.Path
 
 class WorkspaceContextTest : YamlPsiTest() {
     @get:Rule val folder = TemporaryFolder()
@@ -73,7 +75,7 @@ class WorkspaceContextTest : YamlPsiTest() {
         assertEquals("^3.9.0", actual.dart)
         assertEquals("3.9.2", actual.dartVersion)
         assertEquals("3.35.0", actual.flutterVersion)
-        assertEquals(sdk.resolve("bin/flutter").toString(), FlutterPubGetRunner.executable(member, false))
+        assertEquals(sdk.resolve("bin/flutter").toString(), FlutterPubGetRunner.command(member, false).executable)
     }
 
     @Test fun workspaceFvmAppliesToMembersAndMemberFvmTakesPrecedence() {
@@ -81,17 +83,17 @@ class WorkspaceContextTest : YamlPsiTest() {
         val workspaceFvm = workspace.resolve(".fvm/flutter_sdk")
         write(workspaceFvm.resolve("bin/flutter"), "executable")
         write(workspaceFvm.resolve("bin/cache/flutter.version.json"), """{"frameworkVersion":"3.36.0","dartSdkVersion":"3.10.0"}""")
-        assertEquals(workspaceFvm.resolve("bin/flutter").toString(), FlutterPubGetRunner.executable(member, false))
+        assertEquals(workspaceFvm.resolve("bin/flutter").toString(), FlutterPubGetRunner.command(member, false).executable)
         assertEquals("3.36.0", ProjectSdkReader.read(app)!!.flutterVersion)
         write(member.resolve(".fvm/flutter_sdk/bin/flutter"), "executable")
-        assertEquals(member.resolve(".fvm/flutter_sdk/bin/flutter").toString(), FlutterPubGetRunner.executable(member, false))
+        assertEquals(member.resolve(".fvm/flutter_sdk/bin/flutter").toString(), FlutterPubGetRunner.command(member, false).executable)
     }
 
     @Test fun independentNestedPackageNeverBorrowsAnAncestorConfig() {
         setupWorkspace()
         write(member.resolve("pubspec.yaml"), "name: independent\n")
         assertEquals(member.resolve(".dart_tool/package_config.json"), DartPackageContext.packageConfig(member))
-        assertEquals("dart", FlutterPubGetRunner.executable(member, false))
+        assertEquals("dart", FlutterPubGetRunner.command(member, false).executable)
         write(member.resolve("pubspec_overrides.yaml"), "resolution: workspace\n")
         assertEquals(config, DartPackageContext.packageConfig(member))
         write(member.resolve("pubspec_overrides.yaml"), "resolution: null\n")

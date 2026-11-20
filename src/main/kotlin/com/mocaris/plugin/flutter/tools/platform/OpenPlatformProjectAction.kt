@@ -9,9 +9,9 @@ import com.intellij.openapi.fileChooser.FileChooser
 import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory
 import com.intellij.openapi.project.DumbAwareAction
 import com.intellij.openapi.vfs.LocalFileSystem
-import com.mocaris.plugin.flutter.tools.core.FlutterToolsBundle.message
 import com.mocaris.plugin.flutter.tools.core.FlutterToolsNotifications
 import com.mocaris.plugin.flutter.tools.core.ProjectDirectorySelection
+import com.mocaris.plugin.flutter.tools.core.localization.FlutterToolsBundle.message
 import java.nio.file.Path
 
 class OpenPlatformProjectAction : DumbAwareAction() {

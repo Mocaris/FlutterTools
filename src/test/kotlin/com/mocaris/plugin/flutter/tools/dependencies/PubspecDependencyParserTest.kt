@@ -1,7 +1,10 @@
 package com.mocaris.plugin.flutter.tools.dependencies
 
-import com.mocaris.plugin.flutter.tools.dependencies.PubspecDependencyParser
-import com.mocaris.plugin.flutter.tools.dependencies.PubspecReferences
+import com.mocaris.plugin.flutter.tools.dependencies.commands.FlutterPubGetRunner
+import com.mocaris.plugin.flutter.tools.dependencies.installation.DependencyVersionEditor
+import com.mocaris.plugin.flutter.tools.dependencies.navigation.PubspecReferences
+import com.mocaris.plugin.flutter.tools.dependencies.versions.DependencyResult
+import com.mocaris.plugin.flutter.tools.dependencies.versions.PackageDependency
 import org.junit.*
 import org.junit.Assert.*
 
@@ -208,7 +211,7 @@ class PubspecDependencyParserTest : com.mocaris.plugin.flutter.tools.core.YamlPs
     @Test fun updateAvailabilityNeverSuggestsDowngradesOrStaleVersions() {
         fun available(constraint: String, installed: String?, latest: String?, error: Boolean = false): Boolean {
             val dep = PackageDependency("http", section = "dependencies", constraint = constraint, source = "pub.dev")
-            return DependencyVersionEditor.updateAvailable(DependencyResult(dep, installed, latest, com.mocaris.plugin.flutter.tools.core.LocalizedText("ready"), error))
+            return DependencyVersionEditor.updateAvailable(DependencyResult(dep, installed, latest, com.mocaris.plugin.flutter.tools.core.localization.LocalizedText("ready"), error))
         }
         assertTrue(available("^1.0.0", "1.1.0", "2.0.0"))
         assertFalse(available("^1.0.0", "2.0.0", "2.0.0"))
@@ -229,12 +232,12 @@ class PubspecDependencyParserTest : com.mocaris.plugin.flutter.tools.core.YamlPs
         val config = root.resolve(".dart_tool/package_config.json")
         java.nio.file.Files.createDirectories(config.parent)
         java.nio.file.Files.writeString(config, """{"packages":[{"name":"flutter","rootUri":"${sdk.resolve("packages/flutter").toUri()}"}]}""")
-        assertEquals(sdk.resolve("bin/flutter").toString(), FlutterPubGetRunner.executable(root, false))
+        assertEquals(sdk.resolve("bin/flutter").toString(), FlutterPubGetRunner.command(root, false).executable)
         val fvm = root.resolve(".fvm/flutter_sdk/bin/flutter")
         java.nio.file.Files.createDirectories(fvm.parent)
         java.nio.file.Files.writeString(fvm, "executable")
-        assertEquals(fvm.toString(), FlutterPubGetRunner.executable(root, false))
-        assertEquals("dart", FlutterPubGetRunner.executable(commandFolder.newFolder("empty").toPath(), false))
+        assertEquals(fvm.toString(), FlutterPubGetRunner.command(root, false).executable)
+        assertEquals("dart", FlutterPubGetRunner.command(commandFolder.newFolder("empty").toPath(), false).executable)
     }
 
     @Test fun versionUnderlineTargetsTheScalarAndExcludesComments() {

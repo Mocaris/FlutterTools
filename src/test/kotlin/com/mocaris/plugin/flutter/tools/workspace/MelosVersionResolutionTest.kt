@@ -5,7 +5,7 @@ import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.newvfs.impl.VfsRootAccess
 import com.intellij.testFramework.PlatformTestUtil
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
-import com.mocaris.plugin.flutter.tools.dependencies.search.PackageRelease
+import com.mocaris.plugin.flutter.tools.dependencies.pub.PackageRelease
 import java.nio.file.Files
 import java.util.concurrent.Callable
 import kotlinx.coroutines.runBlocking
@@ -22,25 +22,24 @@ class MelosVersionResolutionTest : BasePlatformTestCase() {
             Files.createDirectories(sdk.resolve("dart-sdk/bin"))
             Files.writeString(sdk.resolve("flutter.version.json"), """{"dartSdkVersion":"3.10.0","frameworkVersion":"3.38.0"}""")
             val dart = sdk.resolve("dart-sdk/bin/dart")
-            Files.writeString(dart, "#!/bin/sh\necho 'Dart SDK version: 3.6.2 (stable)'\n")
+            Files.writeString(dart, "#!/bin/sh\necho call >> '${path.resolve("calls")}'\necho 'Dart SDK version: 3.6.2 (stable)'\n")
             assertTrue(dart.toFile().setExecutable(true))
             val root = LocalFileSystem.getInstance().refreshAndFindFileByNioFile(path)!!
             root.refresh(false, true)
             val job = ApplicationManager.getApplication().executeOnPooledThread(Callable {
-                runBlocking { MelosVersion.resolve(project, root) {
-                    listOf(PackageRelease("7.4.0", "", ">=3.9.0 <4.0.0", null),
-                        PackageRelease("7.1.0", "", ">=3.6.0 <4.0.0", null))
-                } }
+                runBlocking {
+                    val context = MelosVersion.context(root)
+                    assertFalse(context.workspaceGlobs)
+                    MelosVersion.resolve(project, root, context = context) {
+                        listOf(PackageRelease("7.4.0", "", ">=3.9.0 <4.0.0", null),
+                            PackageRelease("7.1.0", "", ">=3.6.0 <4.0.0", null))
+                    }
+                }
             })
             PlatformTestUtil.waitWithEventsDispatching("Melos SDK resolution", { job.isDone }, 8)
             assertEquals("7.1.0", job.get())
             assertEquals(source, Files.readString(path.resolve("pubspec.yaml")))
-            val check = ApplicationManager.getApplication().executeOnPooledThread(Callable {
-                MelosVersion.supportsWorkspaceGlobs(root)
-            })
-            PlatformTestUtil.waitWithEventsDispatching("glob SDK check", { check.isDone }, 8)
-            assertFalse(check.get())
-            assertEquals(source, Files.readString(path.resolve("pubspec.yaml")))
+            assertEquals(1, Files.readAllLines(path.resolve("calls")).size)
         } finally {
             path.toFile().deleteRecursively()
             LocalFileSystem.getInstance().findFileByNioFile(path)?.refresh(false, true)

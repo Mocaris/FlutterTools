@@ -14,10 +14,10 @@ import com.intellij.testFramework.PlatformTestUtil
 import com.intellij.testFramework.fixtures.LightPlatformCodeInsightFixture4TestCase
 import com.mocaris.plugin.flutter.tools.assets.preview.AssetLineMarkerProvider
 import com.mocaris.plugin.flutter.tools.assets.preview.AssetPreviewService
-import com.mocaris.plugin.flutter.tools.core.FlutterToolsSettings
+import com.mocaris.plugin.flutter.tools.core.settings.FlutterToolsSettings
+import java.nio.file.Files
 import org.junit.Assume
 import org.junit.Test
-import java.nio.file.Files
 
 class ResourcePathCompletionTest : LightPlatformCodeInsightFixture4TestCase() {
     private fun resourceProject(source: String, warmIndex: Boolean = true, action: (VirtualFile) -> Unit) {

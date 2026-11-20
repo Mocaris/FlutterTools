@@ -1,15 +1,18 @@
 package com.mocaris.plugin.flutter.tools.assets
 
-import com.mocaris.plugin.flutter.tools.core.requireLocalized
+import com.mocaris.plugin.flutter.tools.assets.config.MUT_PATTERN
+import com.mocaris.plugin.flutter.tools.assets.config.PUBSPEC_FILE_NAME
+import com.mocaris.plugin.flutter.tools.assets.generation.AssetsGenerator
+import com.mocaris.plugin.flutter.tools.core.localization.requireLocalized
+import java.nio.file.FileVisitResult
+import java.nio.file.Files
+import java.nio.file.LinkOption
+import java.nio.file.Path
+import java.nio.file.SimpleFileVisitor
+import java.nio.file.attribute.BasicFileAttributes
 import org.jetbrains.yaml.psi.*
 import org.yaml.snakeyaml.DumperOptions
 import org.yaml.snakeyaml.Yaml
-import java.nio.file.Path
-import java.nio.file.Files
-import java.nio.file.FileVisitResult
-import java.nio.file.LinkOption
-import java.nio.file.SimpleFileVisitor
-import java.nio.file.attribute.BasicFileAttributes
 
 /** Add declarations by source offsets so comments, fonts and other pubspec settings survive. */
 internal object AssetRegistration {

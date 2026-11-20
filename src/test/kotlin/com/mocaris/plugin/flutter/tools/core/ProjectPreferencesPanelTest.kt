@@ -3,13 +3,19 @@ package com.mocaris.plugin.flutter.tools.core
 import com.intellij.openapi.components.service
 import com.intellij.openapi.util.Disposer
 import com.intellij.testFramework.fixtures.LightPlatformCodeInsightFixture4TestCase
-import com.mocaris.plugin.flutter.tools.core.FlutterToolsBundle.message
+import com.mocaris.plugin.flutter.tools.core.localization.FlutterToolsBundle.message
+import com.mocaris.plugin.flutter.tools.core.localization.FlutterToolsLanguageSelector
+import com.mocaris.plugin.flutter.tools.core.localization.FlutterToolsLanguageSettings
+import com.mocaris.plugin.flutter.tools.core.localization.PluginLanguage
+import com.mocaris.plugin.flutter.tools.core.settings.FlutterToolsConfigurable
+import com.mocaris.plugin.flutter.tools.core.settings.FlutterToolsGlobalSettings
+import com.mocaris.plugin.flutter.tools.core.settings.FlutterToolsSettings
 import com.mocaris.plugin.flutter.tools.toolwindow.ProjectPreferencesPanel
-import org.junit.Test
 import java.awt.Component
 import java.awt.Container
 import javax.swing.JCheckBox
 import javax.swing.JSpinner
+import org.junit.Test
 
 class ProjectPreferencesPanelTest : LightPlatformCodeInsightFixture4TestCase() {
     private fun components(component: Component): List<Component> = listOf(component) +

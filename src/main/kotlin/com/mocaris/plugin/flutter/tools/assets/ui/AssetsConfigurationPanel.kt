@@ -5,33 +5,41 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.ui.DocumentAdapter
+import com.intellij.ui.TitledSeparator
 import com.intellij.ui.components.*
-import com.intellij.openapi.util.text.StringUtil
 import com.intellij.util.ui.JBUI
 import com.mocaris.plugin.flutter.tools.assets.*
-import com.mocaris.plugin.flutter.tools.core.FlutterToolsBundle
-import com.mocaris.plugin.flutter.tools.core.ui.ContentScrollPane
+import com.mocaris.plugin.flutter.tools.assets.config.AssetsConfigService
+import com.mocaris.plugin.flutter.tools.assets.config.AssetsSyncConfig
+import com.mocaris.plugin.flutter.tools.assets.config.DEFAULT_GENERATE_DIR
+import com.mocaris.plugin.flutter.tools.assets.config.DEFAULT_OUT_CLASS
+import com.mocaris.plugin.flutter.tools.assets.config.DEFAULT_OUT_PATH
+import com.mocaris.plugin.flutter.tools.assets.config.PUBSPEC_FILE_NAME
+import com.mocaris.plugin.flutter.tools.core.localization.FlutterToolsBundle
+import com.mocaris.plugin.flutter.tools.core.localization.FlutterToolsBundle.localized
+import com.mocaris.plugin.flutter.tools.core.localization.FlutterToolsBundle.localizedTooltip
+import com.mocaris.plugin.flutter.tools.core.localization.FlutterToolsBundle.message
 import com.mocaris.plugin.flutter.tools.core.ui.ResultTextArea
-import com.mocaris.plugin.flutter.tools.core.FlutterToolsBundle.localized
-import com.mocaris.plugin.flutter.tools.core.FlutterToolsBundle.localizedTooltip
-import com.mocaris.plugin.flutter.tools.core.FlutterToolsBundle.message
-import java.awt.FlowLayout
+import com.mocaris.plugin.flutter.tools.core.ui.SettingsContentPane
+import com.mocaris.plugin.flutter.tools.core.ui.SettingsFormPanel
+import java.awt.BorderLayout
 import java.awt.Dimension
+import java.awt.FlowLayout
 import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
-import java.awt.Insets
 import javax.swing.*
-import javax.swing.plaf.basic.BasicHTML
-import javax.swing.text.View
 import javax.swing.event.DocumentEvent
 
 /** Owns resource form state and detects conflicts with externally edited YAML. */
 class AssetsConfigurationPanel(private val project: Project) : JBScrollPane() {
     private val configs = project.service<AssetsConfigService>()
     private val assets = project.service<AssetsSyncService>()
-    private val resourcePaths = JBTextArea(6, 24).apply { isEditable = false }
+    private val resourcePaths = object : JBTextArea(6, 24) {
+        override fun getPreferredScrollableViewportSize() = Dimension(super.getPreferredScrollableViewportSize().width,
+            getFontMetrics(font).height * rows + insets.top + insets.bottom)
+    }.apply { isEditable = false }
     private var pubspecText: String? = null
-    private val exclusions = JBTextArea(4, 24)
+    private val exclusions = JBTextArea(3, 24)
     private val output = JBTextField(DEFAULT_OUT_PATH)
     private val generateDir = JBTextField(DEFAULT_GENERATE_DIR)
     private val className = JBTextField(DEFAULT_OUT_CLASS)
@@ -45,29 +53,49 @@ class AssetsConfigurationPanel(private val project: Project) : JBScrollPane() {
     private var loading = false
 
     init {
-        val form = JPanel(GridBagLayout())
-        row(form, "assets.source", source)
-        row(form, "assets.resources", ContentScrollPane(resourcePaths), true)
-        row(form, "", button("assets.editPubspec") {
-            root?.findChild(PUBSPEC_FILE_NAME)?.let { com.intellij.openapi.fileEditor.OpenFileDescriptor(project, it).navigate(true) }
+        border = JBUI.Borders.empty(12)
+        viewportBorder = null
+        val form = SettingsFormPanel()
+        form.addRow(JPanel(BorderLayout(8, 0)).apply {
+            add(TitledSeparator().apply { label.localized("assets.resources"); labelFor = resourcePaths }, BorderLayout.CENTER)
+            add(button("assets.editPubspec") {
+                root?.findChild(PUBSPEC_FILE_NAME)?.let { com.intellij.openapi.fileEditor.OpenFileDescriptor(project, it).navigate(true) }
+            }, BorderLayout.EAST)
+        }, 0)
+        form.addRow(SettingsContentPane(resourcePaths).apply {
+            // Keep the last visible row whole when declarations extend past the viewport.
+            resourcePaths.border = JBUI.Borders.empty(8, 8, 0, 8)
+        })
+        form.heading("assets.generationSettings")
+        form.addRow(JPanel(BorderLayout(8, 0)).apply {
+            add(JBLabel().localized("assets.source"), BorderLayout.WEST)
+            add(source, BorderLayout.CENTER)
         })
         exclusions.localizedTooltip("assets.exclusionsTip")
-        row(form, "assets.excluded", ContentScrollPane(exclusions))
         output.localizedTooltip("assets.entryTip")
-        row(form, "assets.entry", output)
         generateDir.localizedTooltip("assets.generateDirTip")
-        row(form, "assets.generateDir", generateDir)
-        row(form, "assets.class", className)
-        row(form, "", extension)
-        row(form, "", watch)
-        row(form, "", buttons(button("assets.save") { save() }, button("assets.reload") {
+        val fields = JPanel(GridBagLayout())
+        listOf("assets.entry" to output, "assets.generateDir" to generateDir, "assets.class" to className).forEachIndexed { index, (key, field) ->
+            fields.add(JBLabel().localized(key).apply { labelFor = field }, GridBagConstraints().apply {
+                gridx = 0; gridy = index; anchor = GridBagConstraints.WEST; insets = JBUI.insets(3, 0, 3, 8)
+            })
+            fields.add(field, GridBagConstraints().apply {
+                gridx = 1; gridy = index; weightx = 1.0; fill = GridBagConstraints.HORIZONTAL; insets = JBUI.insets(3, 0)
+            })
+        }
+        form.addRow(fields)
+        form.addRow(JBLabel().localized("assets.excluded").apply { labelFor = exclusions })
+        form.addRow(SettingsContentPane(exclusions))
+        form.addRow(extension, 10); form.addRow(watch, 0)
+        form.addRow(buttons(button("assets.save") { save() }, button("assets.reload") {
             if (!dirty || Messages.showYesNoDialog(project, message("assets.reloadQuestion"), message("assets.reloadTitle"), message("button.discard"), message("button.cancel"), null) == Messages.YES) load()
-        }, button("assets.generate") {
+        }), 10)
+        form.addRow(buttons(button("assets.generate") {
             if (!dirty || save()) root?.let { assets.generate(it) }
         }))
-        row(form, "assets.result", ContentScrollPane(status).apply {
-            minimumSize = Dimension(0, preferredSize.height)
-        })
+        form.heading("assets.result")
+        form.addRow(SettingsContentPane(status))
+        form.finish()
         setViewportView(form)
         val listener = object : DocumentAdapter() { override fun textChanged(event: DocumentEvent) { if (!loading) dirty = true } }
         listOf(exclusions, output, generateDir, className).forEach { it.document.addDocumentListener(listener) }
@@ -79,22 +107,6 @@ class AssetsConfigurationPanel(private val project: Project) : JBScrollPane() {
 
     private fun button(text: String, action: () -> Unit) = JButton().localized(text).apply { addActionListener { action() } }
     private fun buttons(vararg components: JComponent) = JPanel(FlowLayout(FlowLayout.LEFT, 4, 0)).apply { components.forEach { add(it) } }
-    private fun row(form: JPanel, label: String, component: JComponent, grow: Boolean = false) {
-        val index = form.componentCount / 2
-        val title = object : JLabel() {
-            override fun setText(text: String?) {
-                super.setText(if (text.isNullOrEmpty()) "" else "<html>${StringUtil.escapeXmlEntities(text)}</html>")
-            }
-            override fun getPreferredSize(): Dimension {
-                val width = JBUI.scale(100)
-                (getClientProperty(BasicHTML.propertyKey) as? View)?.setSize(width.toFloat(), 0f)
-                return Dimension(width, super.getPreferredSize().height)
-            }
-            override fun getMinimumSize() = preferredSize
-        }.apply { if (label.isNotEmpty()) localized(label) }
-        form.add(title, GridBagConstraints().apply { gridx = 0; gridy = index; anchor = GridBagConstraints.NORTHWEST; insets = Insets(5, 0, 5, 8) })
-        form.add(component, GridBagConstraints().apply { gridx = 1; gridy = index; weightx = 1.0; if (grow) weighty = 1.0; fill = if (grow) GridBagConstraints.BOTH else GridBagConstraints.HORIZONTAL; insets = Insets(5, 0, 5, 0) })
-    }
     fun canSwitchPackage(): Boolean {
         if (!dirty) return true
         val answer = Messages.showYesNoCancelDialog(project, message("assets.switchQuestion"), "FlutterTools", message("button.save"), message("button.discard"), message("button.cancel"), null)

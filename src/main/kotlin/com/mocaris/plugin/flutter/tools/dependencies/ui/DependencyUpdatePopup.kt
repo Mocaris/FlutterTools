@@ -1,5 +1,6 @@
 package com.mocaris.plugin.flutter.tools.dependencies.ui
 
+import com.intellij.notification.NotificationType
 import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.project.Project
@@ -10,13 +11,15 @@ import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiManager
 import com.intellij.ui.awt.RelativePoint
-import com.intellij.notification.NotificationType
-import com.mocaris.plugin.flutter.tools.core.FlutterToolsBundle.message
 import com.mocaris.plugin.flutter.tools.core.FlutterToolsNotifications
-import com.mocaris.plugin.flutter.tools.core.requireLocalized
+import com.mocaris.plugin.flutter.tools.core.localization.FlutterToolsBundle.message
+import com.mocaris.plugin.flutter.tools.core.localization.requireLocalized
 import com.mocaris.plugin.flutter.tools.dependencies.*
-import org.jetbrains.yaml.psi.YAMLFile
+import com.mocaris.plugin.flutter.tools.dependencies.commands.FlutterPubGetRunner
+import com.mocaris.plugin.flutter.tools.dependencies.installation.DependencyVersionEditor
+import com.mocaris.plugin.flutter.tools.dependencies.versions.DependencyResult
 import java.awt.event.MouseEvent
+import org.jetbrains.yaml.psi.YAMLFile
 
 object DependencyUpdatePopup {
     internal data class Choice(val version: String?, val pubGet: Boolean = false, val recommended: Boolean = false, val document: String? = null) {

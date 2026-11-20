@@ -1,23 +1,23 @@
 package com.mocaris.plugin.flutter.tools.assets.preview
 
 import com.intellij.core.CoreApplicationEnvironment
-import com.intellij.psi.impl.smartPointers.SmartPointerAnchorProvider
-import com.mocaris.plugin.flutter.tools.core.FlutterToolsSettings
 import com.intellij.lang.ParserDefinition
 import com.intellij.openapi.fileTypes.FileType
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiManager
+import com.intellij.psi.impl.smartPointers.SmartPointerAnchorProvider
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.testFramework.LightVirtualFile
-import com.mocaris.plugin.flutter.tools.assets.AssetsGenerator
+import com.mocaris.plugin.flutter.tools.assets.generation.AssetsGenerator
 import com.mocaris.plugin.flutter.tools.core.YamlPsiTest
+import com.mocaris.plugin.flutter.tools.core.settings.FlutterToolsSettings
+import java.nio.file.Path
+import javax.xml.parsers.DocumentBuilderFactory
 import org.junit.Assert.*
 import org.junit.Assume
 import org.junit.Test
-import java.nio.file.Path
-import javax.xml.parsers.DocumentBuilderFactory
 
 class AssetLineMarkerProviderTest : YamlPsiTest() {
     @Test fun dartExtensionIsOptionalAndSeparateFromCorePluginRegistration() {

@@ -1,7 +1,10 @@
 package com.mocaris.plugin.flutter.tools.dependencies.ui
 
-import com.mocaris.plugin.flutter.tools.core.LocalizedText
+import com.mocaris.plugin.flutter.tools.core.localization.LocalizedText
 import com.mocaris.plugin.flutter.tools.dependencies.*
+import com.mocaris.plugin.flutter.tools.dependencies.installation.DependencyVersionEditor
+import com.mocaris.plugin.flutter.tools.dependencies.versions.DependencyResult
+import com.mocaris.plugin.flutter.tools.dependencies.versions.PackageDependency
 import org.junit.Assert.*
 import org.junit.Test
 

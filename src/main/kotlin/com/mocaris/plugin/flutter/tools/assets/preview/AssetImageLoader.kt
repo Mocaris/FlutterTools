@@ -1,7 +1,7 @@
 package com.mocaris.plugin.flutter.tools.assets.preview
 
-import com.mocaris.plugin.flutter.tools.assets.MUT_PATTERN
 import com.mocaris.plugin.flutter.tools.assets.PubspecAssets
+import com.mocaris.plugin.flutter.tools.assets.config.MUT_PATTERN
 import com.twelvemonkeys.imageio.plugins.webp.WebPImageReaderSpi
 import java.awt.RenderingHints
 import java.awt.image.BufferedImage

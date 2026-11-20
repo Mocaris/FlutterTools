@@ -3,8 +3,8 @@ package com.mocaris.plugin.flutter.tools.dependencies.completion
 import com.intellij.openapi.components.service
 import com.intellij.testFramework.EdtTestUtil
 import com.intellij.testFramework.fixtures.CompletionAutoPopupTestCase
-import com.mocaris.plugin.flutter.tools.core.FlutterToolsSettings
 import com.mocaris.plugin.flutter.tools.core.FlutterToolsIcons
+import com.mocaris.plugin.flutter.tools.core.settings.FlutterToolsSettings
 
 class PubspecPackageAutoPopupTest : CompletionAutoPopupTestCase() {
     fun testTypingDependencyNameAutomaticallyShowsVersionCandidates() {

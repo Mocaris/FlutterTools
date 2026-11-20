@@ -11,7 +11,7 @@ import com.intellij.openapi.project.Project
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.util.ThreeState
-import com.mocaris.plugin.flutter.tools.core.FlutterToolsBundle.message
+import com.mocaris.plugin.flutter.tools.core.localization.FlutterToolsBundle.message
 import org.jetbrains.yaml.psi.YAMLFile
 import org.jetbrains.yaml.psi.YAMLMapping
 

@@ -1,7 +1,7 @@
 package com.mocaris.plugin.flutter.tools.core.ui
 
 import com.intellij.ui.components.JBTextArea
-import com.mocaris.plugin.flutter.tools.core.FlutterToolsBundle.localized
+import com.mocaris.plugin.flutter.tools.core.localization.FlutterToolsBundle.localized
 import javax.swing.JMenuItem
 import javax.swing.JPopupMenu
 

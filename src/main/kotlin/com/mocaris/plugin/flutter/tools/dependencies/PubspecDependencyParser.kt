@@ -1,12 +1,13 @@
 package com.mocaris.plugin.flutter.tools.dependencies
 
-import com.mocaris.plugin.flutter.tools.core.requireLocalized
-import com.mocaris.plugin.flutter.tools.core.errorLocalized
 import com.intellij.psi.PsiErrorElement
 import com.intellij.psi.util.PsiTreeUtil
-import org.jetbrains.yaml.psi.*
 import com.mocaris.plugin.flutter.tools.core.YamlSupport
+import com.mocaris.plugin.flutter.tools.core.localization.errorLocalized
+import com.mocaris.plugin.flutter.tools.core.localization.requireLocalized
+import com.mocaris.plugin.flutter.tools.dependencies.versions.PackageDependency
 import java.net.URI
+import org.jetbrains.yaml.psi.*
 
 object PubspecDependencyParser {
     fun forVersionChecks(dependencies: List<PackageDependency>): List<PackageDependency> =

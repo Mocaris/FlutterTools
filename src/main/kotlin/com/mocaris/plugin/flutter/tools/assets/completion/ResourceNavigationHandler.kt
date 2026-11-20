@@ -10,8 +10,8 @@ import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiManager
 import com.intellij.psi.util.CachedValueProvider
 import com.intellij.psi.util.CachedValuesManager
-import com.mocaris.plugin.flutter.tools.assets.AssetsGenerator
 import com.mocaris.plugin.flutter.tools.assets.PubspecAssets
+import com.mocaris.plugin.flutter.tools.assets.generation.AssetsGenerator
 import com.mocaris.plugin.flutter.tools.assets.preview.AssetPreviewService
 import com.mocaris.plugin.flutter.tools.assets.preview.GeneratedAssetReferences
 import com.mocaris.plugin.flutter.tools.assets.preview.ImageRequest

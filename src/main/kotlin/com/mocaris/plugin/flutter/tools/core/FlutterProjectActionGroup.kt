@@ -4,8 +4,8 @@ import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.DefaultActionGroup
 import com.intellij.openapi.project.DumbAware
+import com.mocaris.plugin.flutter.tools.assets.actions.RegisterAssetsAction
 import com.mocaris.plugin.flutter.tools.platform.PlatformProject
-import com.mocaris.plugin.flutter.tools.assets.RegisterAssetsAction
 import java.nio.file.Path
 
 class FlutterProjectActionGroup : DefaultActionGroup(), DumbAware {

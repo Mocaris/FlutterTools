@@ -1,9 +1,9 @@
 package com.mocaris.plugin.flutter.tools.dependencies.ui.search
 
-import com.mocaris.plugin.flutter.tools.core.ui.ContentScrollPane
 import com.intellij.ide.BrowserUtil
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.components.service
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.popup.JBPopupFactory
@@ -11,28 +11,39 @@ import com.intellij.openapi.ui.popup.PopupStep
 import com.intellij.openapi.ui.popup.util.BaseListPopupStep
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.ui.JBColor
+import com.intellij.ui.JBSplitter
+import com.intellij.ui.TitledSeparator
 import com.intellij.ui.awt.RelativePoint
 import com.intellij.ui.components.*
 import com.intellij.util.ui.JBUI
 import com.intellij.util.ui.UIUtil
-import com.mocaris.plugin.flutter.tools.core.FlutterToolsBundle
-import com.mocaris.plugin.flutter.tools.core.FlutterToolsSettings
-import com.intellij.openapi.application.ReadAction
-import com.mocaris.plugin.flutter.tools.core.FlutterToolsBundle.localized
-import com.mocaris.plugin.flutter.tools.core.FlutterToolsBundle.message
+import com.mocaris.plugin.flutter.tools.core.localization.FlutterToolsBundle
+import com.mocaris.plugin.flutter.tools.core.localization.FlutterToolsBundle.localized
+import com.mocaris.plugin.flutter.tools.core.localization.FlutterToolsBundle.message
+import com.mocaris.plugin.flutter.tools.core.settings.FlutterToolsSettings
+import com.mocaris.plugin.flutter.tools.core.ui.SettingsContentPane
+import com.mocaris.plugin.flutter.tools.core.ui.SettingsFormPanel
 import com.mocaris.plugin.flutter.tools.core.ui.ResultTextArea
 import com.mocaris.plugin.flutter.tools.dependencies.*
-import com.mocaris.plugin.flutter.tools.dependencies.search.*
+import com.mocaris.plugin.flutter.tools.dependencies.installation.DependencyInstaller
+import com.mocaris.plugin.flutter.tools.dependencies.pub.PackageInfo
+import com.mocaris.plugin.flutter.tools.dependencies.pub.PackageRelease
+import com.mocaris.plugin.flutter.tools.dependencies.pub.PackageScore
+import com.mocaris.plugin.flutter.tools.dependencies.pub.PackageSearchService
+import com.mocaris.plugin.flutter.tools.dependencies.sdk.ProjectSdk
+import com.mocaris.plugin.flutter.tools.dependencies.sdk.ProjectSdkReader
+import com.mocaris.plugin.flutter.tools.dependencies.sdk.SdkRecommendation
 import com.mocaris.plugin.flutter.tools.dependencies.ui.PackageDocumentationDialog
-import kotlinx.coroutines.*
 import java.awt.BorderLayout
 import java.awt.Cursor
+import java.awt.Dimension
 import java.awt.FlowLayout
 import java.awt.Point
+import java.awt.event.ActionEvent
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
-import java.awt.event.ActionEvent
 import javax.swing.*
+import kotlinx.coroutines.*
 
 class PackageSearchPanel(private val project: Project) : JPanel(BorderLayout(0, 8)), Disposable {
     private val service = project.service<PackageSearchService>()
@@ -54,15 +65,15 @@ class PackageSearchPanel(private val project: Project) : JPanel(BorderLayout(0, 
         font = UIUtil.getLabelFont()
         addPropertyChangeListener("UI") { font = UIUtil.getLabelFont() }
     }
-    private val sdkSummary = textArea(4)
-    private val notice = textArea(3)
-    private val noticeScroll = ContentScrollPane(notice)
-    private val status = textArea(1).localized("search.ready")
+    private val sdkSummary = textArea(3)
+    private val notice = textArea(2)
+    private val noticeScroll = SettingsContentPane(notice)
+    private val status = textArea(2).localized("search.ready")
     private val target = JBLabel()
     private val section = JComboBox(arrayOf("dependencies", "dev_dependencies"))
     private val pubGet = JBCheckBox().localized("search.pubGet")
     private val addButton = button("search.add") { install() }
-    private val documentation = button("docs.details") {
+    private val documentation = button("search.documentation") {
         selected?.let { PackageDocumentationDialog(project, it.name, it.version).show() }
     }
     private val recommend = button("sdk.useRecommended") {
@@ -71,6 +82,9 @@ class PackageSearchPanel(private val project: Project) : JPanel(BorderLayout(0, 
         SdkRecommendation.recommend(info.versions, sdk, project.service<FlutterToolsSettings>().effective().includePrerelease).version?.let { chosenVersions[info.name] = it; results.repaint(); refresh() }
     }
     private val recommendation = textArea(2)
+    private val recommendationPanel = JPanel(BorderLayout(0, 6))
+    private val releaseDetails = textArea(8)
+    private val releasePanel = JPanel(BorderLayout(0, 6))
     private val more = button("search.more") { search(true) }
     private val retry = button("search.retry") { retryAction?.invoke() ?: retrySelected() }
     private var root: VirtualFile? = null
@@ -85,13 +99,21 @@ class PackageSearchPanel(private val project: Project) : JPanel(BorderLayout(0, 
     private var retryAction: (() -> Unit)? = null
 
     init {
+        border = JBUI.Borders.empty(12)
         query.toolTipText = message("search.queryTip")
+        query.emptyText.text = message("search.placeholder")
         query.addActionListener { search(false) }
-        add(JPanel(BorderLayout(6, 0)).apply {
-            add(query, BorderLayout.CENTER)
-            add(button("search.search") { search(false) }, BorderLayout.EAST)
+        add(JPanel(BorderLayout(0, 8)).apply {
+            add(TitledSeparator().apply { label.localized("search.heading"); labelFor = query }, BorderLayout.NORTH)
+            add(JPanel(BorderLayout(6, 0)).apply {
+                add(query, BorderLayout.CENTER)
+                add(button("search.search") { search(false) }, BorderLayout.EAST)
+            }, BorderLayout.CENTER)
         }, BorderLayout.NORTH)
         results.cellRenderer = renderer
+        // Long rows stay clipped to the list; full text belongs in the details area.
+        results.setExpandableItemsEnabled(false)
+        results.emptyText.text = message("search.start")
         results.addListSelectionListener { if (!it.valueIsAdjusting) refresh() }
         val mouse = object : MouseAdapter() {
             override fun mouseClicked(event: MouseEvent) {
@@ -115,27 +137,40 @@ class PackageSearchPanel(private val project: Project) : JPanel(BorderLayout(0, 
             override fun actionPerformed(event: ActionEvent) { showVersions(results.selectedIndex) }
         })
         section.addActionListener { refresh() }
-        add(JPanel(BorderLayout(0, 8)).apply {
-            add(ContentScrollPane(results), BorderLayout.CENTER)
-            add(JPanel().apply {
-                layout = BoxLayout(this, BoxLayout.Y_AXIS)
-                add(JPanel(FlowLayout(FlowLayout.LEFT, 8, 4)).apply { add(more); add(retry); add(recommend) })
-                add(JPanel(BorderLayout(0, 6)).apply {
-                    border = JBUI.Borders.customLine(JBColor.border(), 1, 0, 0, 0)
-                    add(JPanel(BorderLayout()).apply {
-                        add(ContentScrollPane(sdkSummary), BorderLayout.NORTH)
-                        add(ContentScrollPane(recommendation), BorderLayout.CENTER)
-                    }, BorderLayout.NORTH)
-                    add(noticeScroll, BorderLayout.CENTER)
-                    add(JPanel().apply {
-                        layout = BoxLayout(this, BoxLayout.Y_AXIS)
-                        add(JPanel(FlowLayout(FlowLayout.LEFT, 12, 4)).apply { add(target) })
-                        add(JPanel(FlowLayout(FlowLayout.LEFT, 8, 4)).apply { add(section); add(addButton); add(pubGet); add(documentation) })
-                    }, BorderLayout.SOUTH)
-                })
-            }, BorderLayout.SOUTH)
+        val resultPanel = JPanel(BorderLayout(0, 6)).apply {
+            minimumSize = Dimension(0, JBUI.scale(120))
+            add(JBScrollPane(results).apply { border = JBUI.Borders.customLine(JBColor.border()) }, BorderLayout.CENTER)
+            add(JPanel(FlowLayout(FlowLayout.LEFT, 6, 0)).apply { add(more); add(retry) }, BorderLayout.SOUTH)
+        }
+        val details = SettingsFormPanel().apply {
+            border = JBUI.Borders.empty(0, 0, 8, 0)
+            heading("search.installHeading", 0)
+            addRow(target)
+            addRow(JBLabel().localized("search.section").apply { labelFor = section })
+            addRow(section)
+            addRow(pubGet)
+            addRow(JPanel(BorderLayout(6, 0)).apply { add(documentation, BorderLayout.WEST); add(addButton, BorderLayout.EAST) })
+            addRow(noticeScroll)
+            addRow(releasePanel.apply {
+                add(TitledSeparator().apply { label.localized("search.releaseHeading"); labelFor = releaseDetails }, BorderLayout.NORTH)
+                add(SettingsContentPane(releaseDetails), BorderLayout.CENTER)
+            }, 16)
+            heading("search.sdkHeading")
+            addRow(recommendationPanel.apply {
+                add(SettingsContentPane(recommendation), BorderLayout.CENTER)
+                add(JPanel(FlowLayout(FlowLayout.RIGHT, 0, 0)).apply { add(recommend) }, BorderLayout.SOUTH)
+            })
+            addRow(SettingsContentPane(sdkSummary))
+            finish()
+        }
+        add(JBSplitter(true, 0.55f).apply {
+            firstComponent = resultPanel
+            secondComponent = JBScrollPane(details).apply {
+                border = JBUI.Borders.empty(); viewportBorder = null
+                minimumSize = Dimension(0, JBUI.scale(120))
+            }
         }, BorderLayout.CENTER)
-        add(ContentScrollPane(status), BorderLayout.SOUTH)
+        add(SettingsContentPane(status), BorderLayout.SOUTH)
         refresh()
     }
 
@@ -233,6 +268,7 @@ class PackageSearchPanel(private val project: Project) : JPanel(BorderLayout(0, 
     }
 
     fun selectPackage(value: VirtualFile?) { root = value; refresh() }
+    fun focusQuery() { com.intellij.openapi.wm.IdeFocusManager.getInstance(project).requestFocus(query, true) }
     private fun retrySelected() {
         val name = results.selectedValue ?: return
         val token = generation
@@ -241,8 +277,9 @@ class PackageSearchPanel(private val project: Project) : JPanel(BorderLayout(0, 
     }
     fun updateLanguage() {
         FlutterToolsBundle.update(this)
-        for (area in listOf(sdkSummary, recommendation, notice, status)) FlutterToolsBundle.update(area.componentPopupMenu)
+        for (area in listOf(sdkSummary, recommendation, notice, status, releaseDetails)) FlutterToolsBundle.update(area.componentPopupMenu)
         query.toolTipText = message("search.queryTip")
+        query.emptyText.text = message("search.placeholder")
         results.repaint(); refresh()
     }
 
@@ -261,11 +298,24 @@ class PackageSearchPanel(private val project: Project) : JPanel(BorderLayout(0, 
         documentation.isEnabled = selected != null
         addButton.localized("search.add")
         val name = results.selectedValue
+        releasePanel.isVisible = name != null
+        results.emptyText.text = message(if (currentQuery.isEmpty()) "search.start" else "search.empty")
+        recommendationPanel.isVisible = name != null
         val rowFailed = name in infoFailures || name in scoreFailures
         retry.isEnabled = !busy && (retryAction != null || rowFailed)
         try {
             val info = selected
-            val existing = if (current != null && info != null) DependencyInstaller.context(project, current, info.name).dependency else null
+            val latest = name?.let { infos[it] }?.let { it.forVersion(it.metadata.stable ?: it.metadata.newest) }
+            val publisher = name?.let { scores[it]?.publisher }
+            releaseDetails.localized("error.details", if (info == null) message(if (name in infoFailures) "search.detailsUnavailable" else "search.loadingDetails") else
+                listOf(info.name, info.description, "", message("search.selectedVersion", info.version ?: "—"),
+                    message("search.compareDart", info.dartSdk ?: message("search.unrestricted")),
+                    message("search.compareFlutter", info.flutterSdk ?: message("search.unrestricted")), "",
+                    message("search.latestVersion", latest?.version ?: "—"),
+                    message("search.compareDart", latest?.dartSdk ?: message("search.unrestricted")),
+                    message("search.compareFlutter", latest?.flutterSdk ?: message("search.unrestricted")), "",
+                    publisher?.let { message("search.publisher", it) }.orEmpty()).joinToString("\n"))
+            val existing = if (current != null && info != null) DependencyInstaller.existing(project, current, info.name) else null
             val targetSdk = current?.let { ReadAction.compute<ProjectSdk?, RuntimeException> { ProjectSdkReader.read(it) } }
             val recommended = SdkRecommendation.recommend(name?.let { infos[it]?.versions }.orEmpty(), targetSdk, project.service<FlutterToolsSettings>().effective().includePrerelease)
             recommendation.localized(if (recommended.version == null) "sdk.${recommended.status.name.lowercase()}" else "sdk.recommended", recommended.version)
@@ -285,7 +335,7 @@ class PackageSearchPanel(private val project: Project) : JPanel(BorderLayout(0, 
             addButton.isEnabled = reason == null
             addButton.toolTipText = reason
             notice.localized("error.details", listOfNotNull(reason, warning).joinToString("\n"))
-            noticeScroll.isVisible = reason != null || warning != null
+            noticeScroll.isVisible = name != null && (reason != null || warning != null)
             if (reason == null) notice.foreground = JBColor.namedColor("Label.warningForeground", JBColor(0x8B6508, 0xE2B450))
         } catch (e: Exception) {
             notice.localized("search.failed", e)

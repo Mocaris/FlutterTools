@@ -1,6 +1,6 @@
 package com.mocaris.plugin.flutter.tools.assets.preview
 
-import com.mocaris.plugin.flutter.tools.assets.AssetsGenerator
+import com.mocaris.plugin.flutter.tools.assets.generation.AssetsGenerator
 
 /** Parse only our generated constructor shape; offsets are subsequently verified against PSI leaves. */
 internal object GeneratedAssetReferences {

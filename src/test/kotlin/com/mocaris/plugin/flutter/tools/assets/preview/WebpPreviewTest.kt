@@ -1,13 +1,13 @@
 package com.mocaris.plugin.flutter.tools.assets.preview
 
 import com.mocaris.plugin.flutter.tools.assets.AssetRegistration
-import com.mocaris.plugin.flutter.tools.assets.AssetsGenerator
-import com.mocaris.plugin.flutter.tools.assets.AssetsSyncConfig
+import com.mocaris.plugin.flutter.tools.assets.config.AssetsSyncConfig
+import com.mocaris.plugin.flutter.tools.assets.generation.AssetsGenerator
+import java.nio.file.Files
 import org.junit.Assert.*
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
-import java.nio.file.Files
 
 class WebpPreviewTest {
     @get:Rule val folder = TemporaryFolder()

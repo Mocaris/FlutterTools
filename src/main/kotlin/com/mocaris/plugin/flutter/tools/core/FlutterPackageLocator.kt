@@ -1,11 +1,12 @@
 package com.mocaris.plugin.flutter.tools.core
 
-import com.intellij.openapi.project.Project
 import com.intellij.openapi.fileEditor.FileDocumentManager
+import com.intellij.openapi.project.Project
 import com.intellij.openapi.roots.ProjectRootManager
 import com.intellij.openapi.vfs.LocalFileSystem
-import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.vfs.VfsUtilCore
+import com.intellij.openapi.vfs.VirtualFile
+import com.mocaris.plugin.flutter.tools.core.settings.FlutterToolsSettings
 import java.nio.file.Files
 import java.nio.file.Path
 
@@ -56,6 +57,9 @@ object FlutterPackageLocator {
         val selected = project.getService(FlutterToolsSettings::class.java).state.selectedPackagePath
         return candidates.firstOrNull { it.path == selected } ?: candidates.singleOrNull()
     }
+
+    fun displayName(project: Project, root: VirtualFile): String =
+        if (root.path == project.basePath) root.name else root.path.removePrefix("${project.basePath}/")
 
     fun containing(file: VirtualFile?): VirtualFile? {
         var directory = if (file?.isDirectory == true) file else file?.parent

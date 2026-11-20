@@ -11,12 +11,12 @@ import com.intellij.openapi.editor.EditorFactory
 import com.intellij.openapi.editor.event.EditorFactoryEvent
 import com.intellij.openapi.editor.event.EditorFactoryListener
 import com.intellij.openapi.project.Project
-import com.mocaris.plugin.flutter.tools.core.FlutterToolsSettings
-import com.mocaris.plugin.flutter.tools.dependencies.search.PackageSearchService
+import com.mocaris.plugin.flutter.tools.core.settings.FlutterToolsSettings
+import com.mocaris.plugin.flutter.tools.dependencies.pub.PackageSearchService
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
-import java.util.concurrent.atomic.AtomicBoolean
 
 internal data class PackageCandidate(val name: String, val version: String, val published: String? = null, val likes: Int? = null)
 

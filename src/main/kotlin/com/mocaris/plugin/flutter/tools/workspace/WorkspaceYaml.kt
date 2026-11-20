@@ -3,7 +3,7 @@ package com.mocaris.plugin.flutter.tools.workspace
 import com.intellij.openapi.project.Project
 import com.intellij.psi.PsiFileFactory
 import com.mocaris.plugin.flutter.tools.core.YamlSupport
-import com.mocaris.plugin.flutter.tools.core.errorLocalized
+import com.mocaris.plugin.flutter.tools.core.localization.errorLocalized
 import org.jetbrains.yaml.YAMLFileType
 import org.jetbrains.yaml.psi.*
 import org.yaml.snakeyaml.DumperOptions

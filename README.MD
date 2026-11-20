@@ -2,9 +2,20 @@
 
 An IntelliJ IDEA / Android Studio plugin for Flutter asset generation, dependency checks and pub.dev package search. Targets IntelliJ Platform 2023.1–2026 and requires the bundled YAML plugin.
 
+Current version: **2.0.1**. This release shares successful pub package-info responses, avoids periodic parsing in the hidden Package Search page and reuses SDK/output-path work. Source and test packages now follow feature ownership; plugin action IDs and persisted settings names remain unchanged. See [release notes](changeNotes.md).
+
 ## Tool window
 
-Open **View > Tool Windows > FlutterTools** or **Tools > FlutterTools > Open ToolWindow**. The window is docked on the right with a dedicated light/dark SVG icon and lets you select the Flutter/Dart package to work with.
+The **Tools > FlutterTools** menu groups navigation, package commands and settings:
+
+- **Open Tool Window**, **Search Packages…** and **Workspace / Melos** open the existing window; Search Packages focuses the query field, and Workspace / Melos opens the Melos tab.
+- **Generate Resources**, **Check Package Updates** and **Run Pub Get** display their target package. The target comes from the current file, then the window's package selection, then the only discovered package. Commands are disabled when no target is available or their operation is running. Generation and update checks open the corresponding page and preserve Save / Discard / Cancel when switching packages with edited asset settings.
+- **Run Pub Get** saves the selected package and workspace pubspec/override documents, then uses the existing SDK resolver and IDE Run window. Other unsaved files are left untouched.
+- **Project Settings…** opens this project's overrides; **Settings…** opens global defaults.
+
+Open **View > Tool Windows > FlutterTools** or **Tools > FlutterTools > Open Tool Window**. The window is docked on the right with a dedicated light/dark SVG icon and lets you select the Flutter/Dart package to work with.
+
+The package and language selectors use two aligned rows: the package selector fills the available width and the language selector stays compact. Narrow windows wrap the native page tabs so every page remains accessible. Package paths retain their full-path tooltip.
 
 Use the **Language** selector at the top of the window to choose **Follow system**, **中文** or **English**. Follow system uses the current IntelliJ IDEA / Android Studio interface language: Chinese UI locales use Simplified Chinese; English, unsupported or unspecified UI locales use English. It does not use the operating system locale. The same selector is available in **Settings > Other Settings > FlutterTools** and stays synchronized between both entrances. The selection is saved globally for the plugin and takes effect immediately in open FlutterTools windows, action menus and editor hints without discarding unsaved configuration edits. UI labels, dialogs, statuses, notifications and plugin validation errors are localized; file paths, YAML keys, generated Dart identifiers and external error details retain their original values.
 
@@ -14,6 +25,14 @@ Use the **Language** selector at the top of the window to choose **Follow system
 - **Project settings**: choose **Use global settings for this project**, or disable it and apply independent editor/dependency preferences. These overrides are saved in the project workspace; language always remains global.
 
 Configuration edits preserve unrelated YAML, comments and unchanged configuration values. Switching packages with unsaved form changes offers Save / Discard / Cancel. External changes require a reload before overwriting an edited form. Saving configuration is an IDE command and supports Undo.
+
+The Assets panel groups Resources, Generation settings and Status in a compact, top-aligned form. Resource declarations use a bordered, theme-aware six-row read-only viewport, with **Edit pubspec.yaml** beside the heading. Configuration source, output fields, exclusions and options stay together; Save / Reload and Generate now occupy separate rows so controls remain visible in narrow windows. Long lists scroll within their surface, and short windows scroll the form vertically.
+
+The Packages panel uses a bordered dependency table with padded rows and a compact status area. Columns fill wide windows; narrow windows scroll the table horizontally while preserving readable column headers. Hover a cell to read its complete value and update/SDK status.
+
+Package Search separates the query, result list and dependency settings. Drag the divider to resize the result and settings areas; the settings scroll independently and group the target package, dependency type, Pub Get option, documentation and Add/Update action before SDK information. Empty selection uses a neutral prompt; compatibility recommendations and dependency warnings appear after selecting a result. Search, retry, pagination, release selection and dependency writes keep their existing behavior.
+
+Search results use compact three-line rows for package/version, a one-line description and scores/publisher. Truncated rows stay inside the list rather than expanding into a floating overlay. Select a result to read its complete description, publisher and selected/latest Dart/Flutter requirements in **Selected package details** below the dependency actions; long details wrap and scroll within their bordered surface. The version selector stays on each result row.
 
 ## IDE settings
 
@@ -248,6 +267,17 @@ Tabs load lazily in the background and share the configured pub cache lifetime. 
 
 ## Development
 
+Kotlin packages follow feature ownership:
+
+- `assets`: shared declarations and registration; `config` owns YAML settings, `generation` owns Dart output, `actions` owns IDE commands, and `inspection` owns diagnostics. Existing `completion`, `preview` and `ui` packages keep their editor and presentation roles.
+- `dependencies`: the shared pubspec parser and check action; `pub` owns HTTP, successful response caching and documents, `versions` owns checks and constraints, `sdk` owns compatibility recommendations, `usage` owns Dart usage scans, `installation` owns dependency edits, and `commands` owns pub get. Editor integration lives in `completion`, `inspection` and `navigation`; panels live in `ui`.
+- `core`: shared project/workspace context; `settings`, `localization` and `ui` own their respective concerns.
+- `workspace`: Melos commands and conversion; `ui` owns the Melos panel. `platform` owns external IDE launching, and `toolwindow` coordinates feature panels.
+
+Tests mirror the feature packages. Plugin XML class names must follow package moves; action IDs and persisted settings names remain stable. Dependency checks, search, completion and Melos share successful package-info responses. Check failures retain their own retry interval, and manual refresh bypasses cached responses while concurrent checks share a response fetched during the same refresh.
+
+Release archives are written to `build/distributions/FlutterTools-2.0.1.zip`. The latest full functional validation passed 358 tests with 13 Dart integration tests skipped. Shared test JVMs can produce intermittent workspace discovery timeouts; the isolated validation approach is recorded in [performance-review.md](performance-review.md).
+
 Use JDK 17 to run `./gradlew test buildPlugin`. The default target is IntelliJ IDEA Community 2023.1 (build 231), and the plugin uses Java 17 bytecode. Build release archives against this baseline to preserve compatibility with older IDEs. Hint refresh resolves the legacy or relocated hint pass factory at runtime, including Android Studio 2026.1.3 Patch 1. Tests use the SDK's bundled `testFramework.jar`, avoiding separate test-framework artifact downloads. The first build still needs the IDE SDK and normal Gradle dependencies. Use `./gradlew runIde` for tool-window, navigation and file-watcher integration checks in a sandbox IDE.
 
 SVG previews use the public API of bundled JSVG 2.2.0. Shadow relocates this dependency into the plugin's own namespace to avoid conflicts with copies included in newer IDEs; release archives do not call the internal IntelliJ `SVGLoader` API. The renderer remains subject to the existing preview size and complexity limits and cannot load external resources.
@@ -286,4 +316,6 @@ Open the **Melos** tab after **Project Settings** to view the workspace director
 
 Melos version selection uses the workspace command SDK (including FVM / `sdkPath`), with recorded project SDK metadata as a fallback. Release metadata uses the package-search cache and Pub host fallback. If no compatible Workspace/Melos release or SDK version is known, conversion stops before edits. Generated `workspace` and `melos` configuration uses block YAML, including workspace member lists, script mappings and package lists. Existing workspace lists in `pubspec_overrides.yaml` are also expanded to block YAML.
 
-The Melos panel exposes **useRootAsPackage** and **discoverNestedWorkspaces**, initialized from the root pubspec's Melos configuration. The first checkbox includes the root package in Melos operations; unchecked follows Melos's default and excludes it. The second enables nested discovery and writes `packages/**` into `workspace` on Dart 3.11+. Older SDKs use explicit paths for all discovered packages instead, retaining `discoverNestedWorkspaces: true`. New packages on older SDKs must also be added to the explicit workspace member list. Unchecked expands configured members to explicit package paths. Existing members outside `packages/` remain explicitly listed, and any workspace override is kept consistent. Click **Save configuration** to apply changes to a converted workspace, or **Convert to Workspace/Melos** to apply them during conversion. Unsaved choices are retained during refresh; commands are enabled after saving. Both nodes remain block YAML with blank lines separating new top-level entries.
+The Melos panel uses compact, top-aligned Configuration, Members, Tasks and Status sections. Member and script lists have theme-aware backgrounds and outlines; scripts keep a four-row viewport with the Run script button beside the list. Bootstrap and Clean share the Tasks section. Narrow windows scroll vertically, and **Edit YAML** opens the existing configuration file.
+
+The Melos panel offers **Include root package** (`useRootAsPackage`) and **Discover nested workspaces** (`discoverNestedWorkspaces`), initialized from the root pubspec's Melos configuration. The first checkbox includes the root package in Melos operations; unchecked follows Melos's default and excludes it. The second enables nested discovery and writes `packages/**` into `workspace` on Dart 3.11+. Older SDKs use explicit paths for all discovered packages instead, retaining `discoverNestedWorkspaces: true`. New packages on older SDKs must also be added to the explicit workspace member list. Unchecked expands configured members to explicit package paths. Existing members outside `packages/` remain explicitly listed, and any workspace override is kept consistent. Click **Save configuration** to apply changes to a converted workspace, or **Convert to Workspace/Melos** to apply them during conversion. Unsaved choices are retained during refresh; commands are enabled after saving. Both nodes remain block YAML with blank lines separating new top-level entries.

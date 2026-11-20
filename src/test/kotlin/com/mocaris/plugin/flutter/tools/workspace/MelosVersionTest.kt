@@ -1,7 +1,7 @@
 package com.mocaris.plugin.flutter.tools.workspace
 
-import com.mocaris.plugin.flutter.tools.dependencies.search.PackageRelease
-import com.mocaris.plugin.flutter.tools.dependencies.search.ProjectSdk
+import com.mocaris.plugin.flutter.tools.dependencies.pub.PackageRelease
+import com.mocaris.plugin.flutter.tools.dependencies.sdk.ProjectSdk
 import org.junit.Assert.*
 import org.junit.Test
 

@@ -1,10 +1,10 @@
 package com.mocaris.plugin.flutter.tools.assets.completion
 
 import com.intellij.codeInsight.completion.*
-import com.intellij.icons.AllIcons
 import com.intellij.codeInsight.editorActions.TypedHandlerDelegate
 import com.intellij.codeInsight.lookup.AutoCompletionPolicy
 import com.intellij.codeInsight.lookup.LookupElementBuilder
+import com.intellij.icons.AllIcons
 import com.intellij.openapi.components.service
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.project.DumbAware
@@ -16,7 +16,7 @@ import com.intellij.util.ThreeState
 import com.mocaris.plugin.flutter.tools.assets.preview.AssetPreviewService
 import com.mocaris.plugin.flutter.tools.assets.preview.ThumbnailIcon
 import com.mocaris.plugin.flutter.tools.core.FlutterPackageLocator
-import com.mocaris.plugin.flutter.tools.core.FlutterToolsSettings
+import com.mocaris.plugin.flutter.tools.core.settings.FlutterToolsSettings
 
 class ResourcePathCompletion : CompletionContributor(), DumbAware {
     override fun beforeCompletion(context: CompletionInitializationContext) {

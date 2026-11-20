@@ -8,8 +8,15 @@ import com.intellij.openapi.ui.Messages
 import com.intellij.ui.components.JBCheckBox
 import com.intellij.ui.components.JBScrollPane
 import com.mocaris.plugin.flutter.tools.core.*
-import com.mocaris.plugin.flutter.tools.core.FlutterToolsBundle.localized
-import com.mocaris.plugin.flutter.tools.core.FlutterToolsBundle.message
+import com.mocaris.plugin.flutter.tools.core.localization.FlutterToolsBundle
+import com.mocaris.plugin.flutter.tools.core.localization.FlutterToolsBundle.localized
+import com.mocaris.plugin.flutter.tools.core.localization.FlutterToolsBundle.message
+import com.mocaris.plugin.flutter.tools.core.settings.FlutterToolsConfigurable
+import com.mocaris.plugin.flutter.tools.core.settings.FlutterToolsGlobalSettings
+import com.mocaris.plugin.flutter.tools.core.settings.FlutterToolsPreferences
+import com.mocaris.plugin.flutter.tools.core.settings.FlutterToolsPreferencesForm
+import com.mocaris.plugin.flutter.tools.core.settings.FlutterToolsSettings
+import com.mocaris.plugin.flutter.tools.core.settings.PreferencesListener
 import java.awt.BorderLayout
 import java.awt.Component
 import java.awt.Container

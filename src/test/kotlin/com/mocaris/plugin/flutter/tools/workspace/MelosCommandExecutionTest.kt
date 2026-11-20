@@ -54,14 +54,14 @@ class MelosCommandExecutionTest : BasePlatformTestCase() {
                             assertFalse(ApplicationManager.getApplication().isWriteIntentLockAcquired)
                         MelosCommands.run(project, root, mapOf("sdkPath" to "sdk"), MelosCommands.Command(command, listOf(command))) {
                             statuses.add(it)
-                            if (it == com.mocaris.plugin.flutter.tools.core.FlutterToolsBundle.message("workspace.finished", command, 0) ||
+                            if (it == com.mocaris.plugin.flutter.tools.core.localization.FlutterToolsBundle.message("workspace.finished", command, 0) ||
                                 it.contains("Access is allowed") || it.contains("Cannot")) done.countDown()
                         }
                     } catch (e: Throwable) { error.set(e); done.countDown() }
                 }
                 assertTrue("Melos $command: $statuses", done.await(10, TimeUnit.SECONDS))
                 error.get()?.let { throw it }
-                assertTrue(statuses.toString(), statuses.contains(com.mocaris.plugin.flutter.tools.core.FlutterToolsBundle.message("workspace.finished", command, 0)))
+                assertTrue(statuses.toString(), statuses.contains(com.mocaris.plugin.flutter.tools.core.localization.FlutterToolsBundle.message("workspace.finished", command, 0)))
                 assertTrue(Files.readString(path.resolve("commands.txt")).contains("run melos $command"))
             }
             assertTrue(Files.readString(path.resolve("pubspec.yaml")).startsWith("name: after"))

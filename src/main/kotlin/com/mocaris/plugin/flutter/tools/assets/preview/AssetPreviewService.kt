@@ -1,45 +1,45 @@
 package com.mocaris.plugin.flutter.tools.assets.preview
 
-import com.mocaris.plugin.flutter.tools.core.DartPackageContext
-import com.mocaris.plugin.flutter.tools.core.FlutterToolsIcons
+import com.intellij.codeInsight.daemon.DaemonCodeAnalyzer
 import com.intellij.codeInsight.lookup.LookupManager
-import com.intellij.openapi.fileTypes.FileTypeManager
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
-import com.intellij.codeInsight.daemon.DaemonCodeAnalyzer
-import com.intellij.openapi.components.service
-import com.intellij.psi.PsiManager
-import com.mocaris.plugin.flutter.tools.core.FlutterToolsSettings
 import com.intellij.openapi.components.Service
+import com.intellij.openapi.components.service
 import com.intellij.openapi.editor.EditorFactory
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.fileEditor.OpenFileDescriptor
+import com.intellij.openapi.fileTypes.FileTypeManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.popup.*
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VirtualFileManager
 import com.intellij.openapi.vfs.newvfs.BulkFileListener
 import com.intellij.openapi.vfs.newvfs.events.VFileEvent
+import com.intellij.psi.PsiManager
 import com.intellij.ui.awt.RelativePoint
 import com.intellij.ui.components.JBLabel
 import com.intellij.util.ui.JBUI
 import com.mocaris.plugin.flutter.tools.assets.PubspecAssets
-import com.mocaris.plugin.flutter.tools.core.FlutterToolsBundle
-import com.mocaris.plugin.flutter.tools.core.FlutterToolsBundle.localized
-import com.mocaris.plugin.flutter.tools.core.FlutterToolsBundle.message
-import com.mocaris.plugin.flutter.tools.core.LanguageListener
+import com.mocaris.plugin.flutter.tools.core.DartPackageContext
+import com.mocaris.plugin.flutter.tools.core.FlutterToolsIcons
 import com.mocaris.plugin.flutter.tools.core.VfsEventPaths
-import kotlinx.coroutines.*
-import kotlinx.coroutines.sync.Semaphore
-import kotlinx.coroutines.sync.withPermit
+import com.mocaris.plugin.flutter.tools.core.localization.FlutterToolsBundle
+import com.mocaris.plugin.flutter.tools.core.localization.FlutterToolsBundle.localized
+import com.mocaris.plugin.flutter.tools.core.localization.FlutterToolsBundle.message
+import com.mocaris.plugin.flutter.tools.core.localization.LanguageListener
+import com.mocaris.plugin.flutter.tools.core.settings.FlutterToolsSettings
 import java.awt.*
 import java.awt.event.MouseEvent
 import java.awt.image.BufferedImage
 import java.nio.file.Files
 import java.nio.file.Path
-import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicBoolean
 import javax.swing.*
+import kotlinx.coroutines.*
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 
 /** No image I/O in marker collection or painting. Only visible icons enqueue work; queues and caches are bounded. */
 @Service(Service.Level.PROJECT)
@@ -119,12 +119,10 @@ class AssetPreviewService(private val project: Project) : Disposable {
         thumbnails.get(request)?.let { return it.image }
         val id = thumbnails.begin(request) ?: return null
         val job = scope.launch(start = CoroutineStart.LAZY) {
-            try {
-                val value = readers.withPermit { runInterruptible { load(request, 32, 32) } }
-                ensureActive()
-                if (!enabled) return@launch
-                thumbnails.complete(request, id, value)
-            } finally { thumbnails.abandon(request, id) }
+            val value = readers.withPermit { runInterruptible { load(request, 32, 32) } }
+            ensureActive()
+            if (!enabled) return@launch
+            thumbnails.complete(request, id, value)
         }
         thumbnailJobs[request] = job
         job.invokeOnCompletion {

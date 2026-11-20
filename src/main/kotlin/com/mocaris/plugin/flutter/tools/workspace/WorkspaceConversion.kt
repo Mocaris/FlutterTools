@@ -1,22 +1,22 @@
 package com.mocaris.plugin.flutter.tools.workspace
 
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.application.WriteIntentReadAction
-import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.ReadonlyStatusHandler
-import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.vfs.VfsUtilCore
+import com.intellij.openapi.vfs.VirtualFile
 import com.mocaris.plugin.flutter.tools.core.WorkspaceLayout
 import com.mocaris.plugin.flutter.tools.core.YamlSupport
-import com.mocaris.plugin.flutter.tools.core.requireLocalized
-import com.mocaris.plugin.flutter.tools.core.errorLocalized
-import com.mocaris.plugin.flutter.tools.core.FlutterToolsBundle.message
-import com.mocaris.plugin.flutter.tools.dependencies.PubConstraint
-import com.mocaris.plugin.flutter.tools.dependencies.PubVersion
+import com.mocaris.plugin.flutter.tools.core.localization.FlutterToolsBundle.message
+import com.mocaris.plugin.flutter.tools.core.localization.errorLocalized
+import com.mocaris.plugin.flutter.tools.core.localization.requireLocalized
+import com.mocaris.plugin.flutter.tools.dependencies.versions.PubConstraint
+import com.mocaris.plugin.flutter.tools.dependencies.versions.PubVersion
 import java.nio.file.Files
 import java.nio.file.Path
 
@@ -150,7 +150,7 @@ internal object WorkspaceConversion {
         checkUnchanged()
         if (plan.after.isEmpty()) return
         val files = plan.after.keys.mapNotNull { plan.root.findFileByRelativePath(it) }
-        requireLocalized(!ReadonlyStatusHandler.getInstance(project).ensureFilesWritable(*files.toTypedArray()).hasReadonlyFiles(), "melos.readOnly")
+        requireLocalized(!ReadonlyStatusHandler.getInstance(project).ensureFilesWritable(files).hasReadonlyFiles(), "melos.readOnly")
         requireLocalized(plan.root.isWritable, "melos.readOnly")
         val manager = FileDocumentManager.getInstance()
         WriteCommandAction.writeCommandAction(project).withName(message("melos.convertCommand")).withGlobalUndo().run<RuntimeException> {
@@ -181,9 +181,10 @@ internal object WorkspaceConversion {
     private fun update(project: Project, root: VirtualFile, options: Options?, conversion: Boolean, finished: (String) -> Unit) {
         ApplicationManager.getApplication().executeOnPooledThread {
             val result = runCatching {
-                val workspaceGlobs = options?.discoverNestedWorkspaces == true && MelosVersion.supportsWorkspaceGlobs(root)
+                val sdk = if (conversion || options?.discoverNestedWorkspaces == true) MelosVersion.context(root) else null
+                val workspaceGlobs = options?.discoverNestedWorkspaces == true && sdk?.workspaceGlobs == true
                 val version = if (conversion) kotlinx.coroutines.runBlocking {
-                    MelosVersion.resolve(project, root, workspaceGlobs)
+                    MelosVersion.resolve(project, root, workspaceGlobs, sdk!!)
                 } else null
                 ReadAction.compute<Plan, RuntimeException> { prepare(project, root, version, options, workspaceGlobs) }
             }

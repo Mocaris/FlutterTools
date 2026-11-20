@@ -1,32 +1,39 @@
 package com.mocaris.plugin.flutter.tools.assets
 
-import com.mocaris.plugin.flutter.tools.core.DartPackageContext
-import com.mocaris.plugin.flutter.tools.core.requireLocalized
-import com.mocaris.plugin.flutter.tools.core.FlutterToolsBundle.text
-import com.mocaris.plugin.flutter.tools.core.LocalizedText
+import com.intellij.notification.NotificationType
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
-import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.editor.EditorFactory
 import com.intellij.openapi.editor.event.DocumentEvent
 import com.intellij.openapi.editor.event.DocumentListener
+import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.vfs.VirtualFileManager
 import com.intellij.openapi.vfs.newvfs.BulkFileListener
 import com.intellij.openapi.vfs.newvfs.events.*
+import com.mocaris.plugin.flutter.tools.assets.config.AssetsConfigService
+import com.mocaris.plugin.flutter.tools.assets.config.AssetsSyncConfig
+import com.mocaris.plugin.flutter.tools.assets.config.PUBSPEC_FILE_NAME
+import com.mocaris.plugin.flutter.tools.assets.config.TOOLS_FILE_NAME
+import com.mocaris.plugin.flutter.tools.assets.generation.AssetsGenerator
+import com.mocaris.plugin.flutter.tools.assets.generation.AssetsOutputVfs
+import com.mocaris.plugin.flutter.tools.assets.generation.AssetsOutputWriter
+import com.mocaris.plugin.flutter.tools.core.DartPackageContext
 import com.mocaris.plugin.flutter.tools.core.FlutterPackageLocator
-import com.mocaris.plugin.flutter.tools.core.VfsEventPaths
 import com.mocaris.plugin.flutter.tools.core.FlutterToolsNotifications
-import com.intellij.notification.NotificationType
-import kotlinx.coroutines.*
-import kotlinx.coroutines.channels.Channel
+import com.mocaris.plugin.flutter.tools.core.VfsEventPaths
+import com.mocaris.plugin.flutter.tools.core.localization.FlutterToolsBundle.text
+import com.mocaris.plugin.flutter.tools.core.localization.LocalizedText
+import com.mocaris.plugin.flutter.tools.core.localization.requireLocalized
 import java.nio.file.*
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.time.Duration.Companion.milliseconds
+import kotlinx.coroutines.*
+import kotlinx.coroutines.channels.Channel
 
 @Service(Service.Level.PROJECT)
 class AssetsSyncService(private val project: Project) : BulkFileListener, Disposable {
@@ -40,6 +47,7 @@ class AssetsSyncService(private val project: Project) : BulkFileListener, Dispos
     private val configNames = setOf(PUBSPEC_FILE_NAME, TOOLS_FILE_NAME, "package_config.json", "pubspec_overrides.yaml", "melos.yaml")
     private val statuses = ConcurrentHashMap<String, LocalizedText>()
     fun status(root: VirtualFile): String = (statuses[root.path] ?: text("ready")).toString()
+    fun isGenerating(root: VirtualFile): Boolean = statuses[root.path]?.key == "assets.generating"
 
     init {
         project.messageBus.connect(this).subscribe(VirtualFileManager.VFS_CHANGES, this)

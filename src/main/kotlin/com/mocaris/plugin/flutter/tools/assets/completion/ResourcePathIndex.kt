@@ -1,11 +1,11 @@
 package com.mocaris.plugin.flutter.tools.assets.completion
 
-import com.mocaris.plugin.flutter.tools.core.DartPackageContext
-import com.mocaris.plugin.flutter.tools.assets.MUT_PATTERN
 import com.mocaris.plugin.flutter.tools.assets.PubspecAssets
+import com.mocaris.plugin.flutter.tools.assets.config.MUT_PATTERN
 import com.mocaris.plugin.flutter.tools.assets.preview.AssetImageLoader
-import com.mocaris.plugin.flutter.tools.assets.preview.ImageRequest
 import com.mocaris.plugin.flutter.tools.assets.preview.GeneratedAssetReferences
+import com.mocaris.plugin.flutter.tools.assets.preview.ImageRequest
+import com.mocaris.plugin.flutter.tools.core.DartPackageContext
 import java.nio.file.Files
 import java.nio.file.LinkOption.NOFOLLOW_LINKS
 import java.nio.file.Path

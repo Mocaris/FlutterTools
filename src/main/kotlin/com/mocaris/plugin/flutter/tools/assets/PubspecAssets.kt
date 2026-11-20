@@ -1,10 +1,12 @@
 package com.mocaris.plugin.flutter.tools.assets
 
-import com.mocaris.plugin.flutter.tools.core.DartPackageContext
-import com.mocaris.plugin.flutter.tools.core.requireLocalized
-import com.mocaris.plugin.flutter.tools.core.errorLocalized
 import com.google.gson.JsonParser
+import com.mocaris.plugin.flutter.tools.assets.config.MUT_PATTERN
+import com.mocaris.plugin.flutter.tools.assets.generation.AssetsGenerator
+import com.mocaris.plugin.flutter.tools.core.DartPackageContext
 import com.mocaris.plugin.flutter.tools.core.YamlSupport
+import com.mocaris.plugin.flutter.tools.core.localization.errorLocalized
+import com.mocaris.plugin.flutter.tools.core.localization.requireLocalized
 import java.nio.file.Files
 import java.nio.file.Path
 

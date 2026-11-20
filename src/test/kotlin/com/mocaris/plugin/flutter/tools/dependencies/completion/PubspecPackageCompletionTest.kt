@@ -1,10 +1,10 @@
 package com.mocaris.plugin.flutter.tools.dependencies.completion
 
-import com.intellij.codeInsight.lookup.Lookup
 import com.intellij.codeInsight.completion.CompletionContributor
+import com.intellij.codeInsight.lookup.Lookup
 import com.intellij.openapi.components.service
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
-import com.mocaris.plugin.flutter.tools.core.FlutterToolsSettings
+import com.mocaris.plugin.flutter.tools.core.settings.FlutterToolsSettings
 
 class PubspecPackageCompletionTest : BasePlatformTestCase() {
     private fun candidates(vararg items: PackageCandidate) {

@@ -1,5 +1,6 @@
 package com.mocaris.plugin.flutter.tools.core
 
+import com.google.gson.JsonObject
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.vfs.VirtualFile
 import java.nio.file.Files
@@ -37,6 +38,16 @@ object DartPackageContext {
 
     fun packageConfig(root: Path): Path = root(root).resolve(".dart_tool/package_config.json")
     fun packageConfig(root: VirtualFile): VirtualFile? = root(root).findChild(".dart_tool")?.findChild("package_config.json")
+
+    fun flutterSdkRoot(config: Path, json: JsonObject?): Path? = runCatching {
+        val uri = json?.getAsJsonArray("packages")?.firstOrNull { it.asJsonObject.get("name")?.asString == "flutter" }
+            ?.asJsonObject?.get("rootUri")?.asString ?: return@runCatching null
+        val resolved = config.toUri().resolve(uri)
+        if (resolved.scheme == "file") Path.of(resolved).normalize().parent?.parent else null
+    }.getOrNull()
+
+    fun flutterSdkRoots(root: Path, context: Path, recorded: Path?): List<Path> =
+        (listOf(root, context).distinct().map { it.resolve(".fvm/flutter_sdk") } + listOfNotNull(recorded)).distinct()
 
     /** Also invalidate on ancestor metadata changes: resolution can switch before a new config is created. */
     fun metadataAffected(root: Path, changed: Path): Boolean {

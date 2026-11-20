@@ -1,7 +1,7 @@
 package com.mocaris.plugin.flutter.tools.assets.preview
 
+import com.mocaris.plugin.flutter.tools.assets.config.MUT_PATTERN
 import com.mocaris.plugin.flutter.tools.core.DartPackageContext
-import com.mocaris.plugin.flutter.tools.assets.MUT_PATTERN
 import java.nio.file.Path
 
 internal object ImageInvalidation {

@@ -2,23 +2,23 @@ package com.mocaris.plugin.flutter.tools.assets.preview
 
 import com.intellij.codeInsight.daemon.LineMarkerInfo
 import com.intellij.codeInsight.daemon.LineMarkerProviderDescriptor
-import com.mocaris.plugin.flutter.tools.assets.AssetsGenerator
-import com.mocaris.plugin.flutter.tools.assets.completion.ResourceCompletionService
-import com.mocaris.plugin.flutter.tools.assets.completion.ResourceString
-import com.mocaris.plugin.flutter.tools.assets.completion.ResourcePathIndex
-import com.intellij.openapi.vfs.VirtualFile
-import com.mocaris.plugin.flutter.tools.core.FlutterToolsIcons
 import com.intellij.openapi.components.service
 import com.intellij.openapi.editor.markup.GutterIconRenderer
 import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.util.text.StringUtil
+import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.util.CachedValueProvider
 import com.intellij.psi.util.CachedValuesManager
-import com.mocaris.plugin.flutter.tools.core.FlutterToolsSettings
+import com.mocaris.plugin.flutter.tools.assets.completion.ResourceCompletionService
+import com.mocaris.plugin.flutter.tools.assets.completion.ResourcePathIndex
+import com.mocaris.plugin.flutter.tools.assets.completion.ResourceString
+import com.mocaris.plugin.flutter.tools.assets.generation.AssetsGenerator
 import com.mocaris.plugin.flutter.tools.core.FlutterPackageLocator
-import com.mocaris.plugin.flutter.tools.core.FlutterToolsBundle.message
+import com.mocaris.plugin.flutter.tools.core.FlutterToolsIcons
+import com.mocaris.plugin.flutter.tools.core.localization.FlutterToolsBundle.message
+import com.mocaris.plugin.flutter.tools.core.settings.FlutterToolsSettings
 
 /** Optional Dart extension using platform PSI only, with no Dart implementation API dependency. */
 class AssetLineMarkerProvider : LineMarkerProviderDescriptor(), DumbAware {
